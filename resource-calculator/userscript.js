@@ -4,6 +4,7 @@
 // @version      1.0.0
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe
 // @author       Oscar
+// @license      MIT
 // @match        https://islandking.ch/*
 // @grant        none
 // @run-at       document-idle

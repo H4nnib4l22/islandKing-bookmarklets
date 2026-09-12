@@ -4,6 +4,7 @@
 // @version      1.0.0
 // @description  Allianz-Overlay mit Online-Status, Favoriten und Verfolgt-Liste
 // @author       Oscar
+// @license      MIT
 // @match        https://islandking.ch/*
 // @grant        none
 // @run-at       document-idle
