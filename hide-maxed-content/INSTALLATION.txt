@@ -1,0 +1,31 @@
+Islandking Max-Stufe ausblenden — Tampermonkey-Userscript
+==========================================================
+
+Was das ist
+-----------
+Auf der Inselseite (islandking.ch/island/<id>) und der Forschungsseite
+(islandking.ch/research) zeigen die Listen jeden Eintrag einzeln an, auch
+die, die längst ihre max. Stufe erreicht haben und nicht mehr ausgebaut
+bzw. erforscht werden können. Dieses Script setzt je Liste einen eigenen
+Ein/Aus-Schalter "Max. Stufe ausblenden" — bei den Gebäuden direkt über
+der Gebäudeliste (neben dem "Tech-Tree"-Link), bei den Forschungen direkt
+über der Forschungsliste. Beide standardmäßig aktiv, blenden also alle
+bereits maximierten Einträge aus, sodass nur noch die ausbau- bzw.
+erforschbaren übrig bleiben. Jeder Schalter merkt sich seinen Zustand
+unabhängig vom anderen (localStorage) über Reloads und Insel-/Seitenwechsel
+hinweg.
+
+Reine DOM-Filterung der bestehenden Seiten, keine API, kein Login-Token,
+kein eigenes Panel — nur Tampermonkey, kein Bookmarklet (die Seiten sind
+eine Single-Page-App, ein Bookmarklet müsste bei jedem Insel-/Seitenwechsel
+erneut angeklickt werden).
+
+Einrichtung
+-----------
+1. Tampermonkey-Erweiterung installieren (falls noch nicht vorhanden).
+2. Tampermonkey-Dashboard → "Neues Skript" → kompletten Inhalt von
+   userscript.js einfügen, speichern.
+3. Auf islandking.ch eine beliebige Inselseite oder die Forschungsseite
+   öffnen — die jeweilige Liste zeigt jetzt automatisch nur noch
+   ausbau-/erforschbare Einträge, der Schalter sitzt rechts neben der
+   Überschrift.

@@ -34,11 +34,12 @@ Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   Karten-Popup eines Piraten-Konvois erscheint zusätzlich ein **"An
   Kampfrechner senden"**-Button, der dessen Schiffstypen+Anzahl direkt in
   den Konvoi-entern-Tab überträgt — nur sichtbar, solange das Popup offen ist.
-- **Max-Stufe ausblenden** (`hide-maxed-buildings/`) — nur Tampermonkey
-  (kein Bookmarklet, da die Inselseite eine Single-Page-App ist). Setzt
-  einen Ein/Aus-Schalter über die Gebäudeliste der Inselseite, der bereits
-  maximierte Gebäude ausblendet, standardmäßig aktiv. Kein eigenes Panel,
-  reine DOM-Filterung.
+- **Max-Stufe ausblenden** (`hide-maxed-content/`) — nur Tampermonkey
+  (kein Bookmarklet, da Insel- und Forschungsseite Single-Page-Apps sind).
+  Setzt je einen eigenen Ein/Aus-Schalter über die Gebäudeliste der
+  Inselseite und über die Forschungsliste, die bereits maximierte
+  Gebäude/Forschungen ausblenden, standardmäßig beide aktiv. Kein eigenes
+  Panel, reine DOM-Filterung.
 
 Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
 sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und
