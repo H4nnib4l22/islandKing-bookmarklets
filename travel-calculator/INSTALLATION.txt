@@ -47,3 +47,13 @@ Adresse einfügen.
 Alternativ als Tampermonkey-Userscript: userscript.js öffnen, Inhalt
 kopieren, in Tampermonkey "Neues Script" einfügen, speichern — läuft
 dann automatisch auf jeder islandking.ch-Seite.
+
+Nur im Tampermonkey-Userscript (nicht im Bookmarklet): zweites Panel
+"⚔️ Kampfrechner", dockt links neben dem Reisezeitenrechner an. Volle
+Kampfformel aus dem Schattenflotte Taktischer Koordinator (444/445
+echte Kämpfe exakt getroffen) — Angreifer/Verteidiger-Stückzahlen für
+alle Schiffs- und Truppentypen eingeben, Verteidiger zusätzlich mit
+Verteidigungsanlagen (Stadtmauer, Kanonen zur Stadtmauer, Leichter/
+Schwerer Turm, Kanonenturm, Wasserblockade je mit Level). Ergebnis:
+Sieger, Rundenzahl (max. 6) und Vorher/Nachher/Verlust je Einheitentyp.
+Reine Rechnerei, keine API/kein Login-Token nötig.

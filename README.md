@@ -15,12 +15,18 @@ kein GitHub-Token, kein externes Datenrepo.
   Bauzeit und Ansparzeit aus Lager + Produktion berechnet.
 - **Reisezeitenrechner** (`travel-calculator/`) — Overlay-Panel, das aus
   zwei Koordinaten Distanz, Fahrtzeit und ETA für alle Schiffstypen
-  berechnet. Reine Rechnerei ohne API/Token/Netzwerk.
+  berechnet. Reine Rechnerei ohne API/Token/Netzwerk. Nur im
+  Tampermonkey-Userscript (nicht im Bookmarklet) zusätzlich mit einem
+  eigenen **⚔️ Kampfrechner**-Panel daneben (links) — volle Kampfformel
+  aus dem Schattenflotte Taktischer Koordinator (444/445 echte Kämpfe
+  exakt), Angreifer/Verteidiger-Stückzahlen für alle Schiffs- und
+  Truppentypen sowie Verteidigungsanlagen, Ergebnis inkl. Sieger,
+  Rundenzahl und Verlusten je Einheitentyp.
 
-Alle drei Panels erkennen sich gegenseitig: Allianz Status links,
-Ressourcenrechner und Reisezeitenrechner rechts übereinander gestapelt
-(dynamisch — wächst/schrumpft der Ressourcenrechner, rutscht der
-Reisezeitenrechner automatisch mit).
+Alle Panels erkennen sich gegenseitig: Allianz Status und Kampfrechner
+links, Ressourcenrechner und Reisezeitenrechner rechts, jeweils
+übereinander gestapelt (dynamisch — wächst/schrumpft ein Panel,
+rutschen die darunter angedockten automatisch mit).
 
 **Bookmarklet-Installation:** siehe `INSTALLATION.txt` im jeweiligen
 Unterordner, oder komplettes Bundle als `islandking-bookmarklets.zip`.

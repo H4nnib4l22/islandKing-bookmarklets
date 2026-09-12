@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.0.0
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen
+// @version      1.1.0
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Angreifer vs. Verteidiger)
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -13,16 +13,24 @@
 // ==/UserScript==
 
 /*
- * Islandking Reisezeitenrechner — Tampermonkey-Userscript (baugleich zum
- * Bookmarklet in diesem Ordner, nur oeffnet es sich automatisch beim Laden
- * der Seite statt per Klick).
- * Reine Koordinaten-Rechnung, 1:1 aus runStandaloneTravelCalc() im
- * Schattenflotte Taktischer Koordinator uebernommen — braucht keine API,
- * keinen Login-Token, keine Netzwerkanfrage.
+ * Islandking Reisezeitenrechner + Kampfrechner — Tampermonkey-Userscript
+ * (baugleich zum Bookmarklet in diesem Ordner, nur oeffnet es sich
+ * automatisch beim Laden der Seite statt per Klick).
+ * Reisezeit: reine Koordinaten-Rechnung, 1:1 aus runStandaloneTravelCalc()
+ * uebernommen. Kampf: 1:1 aus simulateCombatFull() im Schattenflotte
+ * Taktischer Koordinator uebernommen (kontinuierlicher HP-Pool, 444/445
+ * echte Kaempfe exakt getroffen). Beide brauchen keine API, keinen
+ * Login-Token, keine Netzwerkanfrage — reiner Katalog + Formel.
  */
 (function () {
-  const existing = document.getElementById('iktc-panel');
-  if (existing) { existing.remove(); return; }
+  const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
+  if (existing) {
+    const other = document.getElementById('iktc-panel');
+    const other2 = document.getElementById('ikcc-panel');
+    if (other) other.remove();
+    if (other2) other2.remove();
+    return;
+  }
 
   const SHIPS_LIST = [
     { name: 'Fregatte', tempo: 45, pirate: false },
@@ -156,4 +164,218 @@
   document.getElementById('iktc-start').addEventListener('input', run);
   document.getElementById('iktc-ziel').addEventListener('input', run);
   document.getElementById('iktc-speed').addEventListener('change', run);
+
+  // ---- Kampfrechner ----------------------------------------------------
+  // Katalog + Formel 1:1 aus simulateCombatFull() im Schattenflotte
+  // Taktischer Koordinator uebernommen (444/445 echte Kaempfe exakt).
+  const SHIPS_COMBAT = [
+    { name: 'Schlachtschiff', attack: 4000, hp: 5000 },
+    { name: 'schwere Galeere', attack: 200, hp: 500 },
+    { name: 'leichte Galeere', attack: 40, hp: 60 },
+    { name: 'Fregatte', attack: 650, hp: 7000 },
+    { name: 'kleines Frachtschiff', attack: 0, hp: 50 },
+    { name: 'grosses Frachtschiff', attack: 0, hp: 150 },
+    { name: 'Kolonisationsschiff', attack: 10, hp: 150 },
+    { name: 'mächtiges Piratenschiff', attack: 3500, hp: 7500 },
+    { name: 'grosses Piratenschiff', attack: 400, hp: 6500 },
+    { name: 'altes Piratenschiff', attack: 10, hp: 200 },
+    { name: 'Piratenschiff', attack: 120, hp: 800 },
+  ];
+  const TROOPS_COMBAT = [
+    { name: 'Soldat', attack: 3, hp: 2 },
+    { name: 'Schwertkämpfer', attack: 3, hp: 5 },
+    { name: 'Musketier', attack: 14, hp: 6 },
+    { name: 'Kanonier', attack: 40, hp: 10 },
+    { name: 'Ritter', attack: 12, hp: 21 },
+  ];
+  // Verteidigungsanlagen: nur beim Verteidiger, level-skaliert (Lv 1-50), ausser
+  // den beiden festen Anlagen ohne Level (Kanonen zur Stadtmauer/Stadtmauer selbst).
+  const BUILDINGS_COMBAT = [
+    { name: 'Kanonen zur Stadtmauer', fixed: { attack: 20000, hp: 1 } },
+    { name: 'Stadtmauer', fixed: { attack: 0, hp: 30000 } },
+    { name: 'Leichter Turm', perLv: { attack: 30, hp: 100 } },
+    { name: 'Schwerer Turm', perLv: { attack: 180, hp: 700 } },
+    { name: 'Kanonenturm', perLv: { attack: 1600, hp: 3000 } },
+    { name: 'Wasserblockade', perLv: { attack: 0, hp: 5000 } },
+  ];
+
+  // 1:1 aus index.php: kontinuierlicher HP-Pool pro Einheitentyp statt diskreter
+  // Rundenverluste. Schaden wird proportional zum verbleibenden Pool-Anteil verteilt,
+  // curCount = ceil(pool/hp) haelt angeschlagene Einheiten voll angriffsstark im Kampf.
+  function simulateCombatFull(attackerUnits, defenderUnits, maxRounds) {
+    if (maxRounds === undefined) maxRounds = 6;
+    let att = attackerUnits.map((u) => Object.assign({}, u, { curHpPool: u.count * u.hp }));
+    let def = defenderUnits.map((u) => Object.assign({}, u, { curHpPool: u.count * u.hp }));
+    let round = 1;
+    let rounds = 0;
+
+    while (round <= maxRounds) {
+      const totalAtk_A = att.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp) * u.attack : 0), 0);
+      const totalHp_A = att.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
+      const totalAtk_D = def.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp) * u.attack : 0), 0);
+      const totalHp_D = def.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
+
+      if (totalHp_A <= 0 || totalHp_D <= 0) break;
+
+      def.forEach((u) => {
+        if (u.curHpPool > 0 && totalHp_D > 0) {
+          const share = u.curHpPool / totalHp_D;
+          u.curHpPool = Math.max(0, u.curHpPool - totalAtk_A * share);
+        }
+      });
+      att.forEach((u) => {
+        if (u.curHpPool > 0 && totalHp_A > 0) {
+          const share = u.curHpPool / totalHp_A;
+          u.curHpPool = Math.max(0, u.curHpPool - totalAtk_D * share);
+        }
+      });
+
+      rounds = round;
+      const remHp_A = att.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
+      const remHp_D = def.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
+      if (remHp_D <= 0 || remHp_A <= 0) break;
+      round++;
+    }
+
+    const toFinal = (list) => list.map((u) => Object.assign({}, u, { after: Math.ceil(Math.max(0, u.curHpPool) / u.hp) }));
+    const attFinal = toFinal(att);
+    const defFinal = toFinal(def);
+    const defDestroyed = defFinal.every((u) => u.after === 0) && attFinal.some((u) => u.after > 0);
+    return { attFinal, defFinal, rounds, defDestroyed };
+  }
+
+  const combatPanel = document.createElement('div');
+  combatPanel.id = 'ikcc-panel';
+  combatPanel.dataset.ikbmPanel = '1';
+  combatPanel.dataset.ikbmSide = 'left';
+  combatPanel.style.cssText = 'position:fixed;width:460px;overflow:auto;'
+    + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
+    + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+
+  function unitRow(prefix, u, extra) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
+      + '<span style="opacity:.85">' + u.name + (extra || '') + '</span>'
+      + '<input type="number" min="0" value="0" data-ikcc-unit="' + prefix + ':' + u.name + '" style="width:70px;box-sizing:border-box">'
+      + '</div>';
+  }
+
+  function buildingRow(b) {
+    if (b.fixed) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
+        + '<span style="opacity:.85">' + b.name + '</span>'
+        + '<input type="checkbox" data-ikcc-bldg-fixed="' + b.name + '">'
+        + '</div>';
+    }
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
+      + '<span style="opacity:.85">' + b.name + ' (Lv)</span>'
+      + '<input type="number" min="0" max="50" value="0" data-ikcc-bldg-lv="' + b.name + '" style="width:70px;box-sizing:border-box">'
+      + '</div>';
+  }
+
+  combatPanel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    + '<b>⚔️ Kampfrechner</b>'
+    + '<span id="ikcc-close" style="cursor:pointer;opacity:.7">✕</span></div>'
+    + '<div style="display:flex;gap:14px;margin-bottom:10px">'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-weight:bold;color:#a78bfa;margin-bottom:4px">Angreifer</div>'
+    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
+    + SHIPS_COMBAT.map((u) => unitRow('att', u)).join('')
+    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Truppen</div>'
+    + TROOPS_COMBAT.map((u) => unitRow('att', u)).join('')
+    + '</div>'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-weight:bold;color:#f0d68a;margin-bottom:4px">Verteidiger</div>'
+    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
+    + SHIPS_COMBAT.map((u) => unitRow('def', u)).join('')
+    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Truppen</div>'
+    + TROOPS_COMBAT.map((u) => unitRow('def', u)).join('')
+    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Verteidigungsanlagen</div>'
+    + BUILDINGS_COMBAT.map(buildingRow).join('')
+    + '</div>'
+    + '</div>'
+    + '<button id="ikcc-run" style="width:100%;padding:6px;margin-bottom:10px;cursor:pointer">Kämpfen</button>'
+    + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
+  document.body.appendChild(combatPanel);
+
+  function repositionCombat() {
+    const top = computeStackTop('left', combatPanel);
+    combatPanel.style.top = top + 'px';
+    combatPanel.style.left = '20px';
+    combatPanel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
+  }
+  repositionCombat();
+  const repositionCombatHandle = setInterval(repositionCombat, 250);
+
+  document.getElementById('ikcc-close').onclick = () => { clearInterval(repositionCombatHandle); combatPanel.remove(); };
+
+  function collectUnits(prefix, catalog) {
+    const units = [];
+    catalog.forEach((u) => {
+      const input = combatPanel.querySelector('[data-ikcc-unit="' + prefix + ':' + u.name + '"]');
+      const count = parseInt(input.value) || 0;
+      if (count > 0) units.push({ name: u.name, attack: u.attack, hp: u.hp, count });
+    });
+    return units;
+  }
+
+  function collectBuildings() {
+    const units = [];
+    BUILDINGS_COMBAT.forEach((b) => {
+      if (b.fixed) {
+        const box = combatPanel.querySelector('[data-ikcc-bldg-fixed="' + b.name + '"]');
+        if (box.checked) units.push({ name: b.name, attack: b.fixed.attack, hp: b.fixed.hp, count: 1 });
+      } else {
+        const input = combatPanel.querySelector('[data-ikcc-bldg-lv="' + b.name + '"]');
+        const lv = parseInt(input.value) || 0;
+        if (lv > 0) units.push({ name: b.name, attack: b.perLv.attack * lv, hp: b.perLv.hp * lv, count: 1 });
+      }
+    });
+    return units;
+  }
+
+  function resultTable(title, before, final) {
+    let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + '</div>'
+      + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td></tr>';
+    before.forEach((u) => {
+      const f = final.find((x) => x.name === u.name);
+      const after = f ? f.after : 0;
+      html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
+        + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
+        + '<td style="opacity:.75">' + (u.count - after) + '</td></tr>';
+    });
+    html += '</table>';
+    return html;
+  }
+
+  function runCombat() {
+    const attackerUnits = collectUnits('att', SHIPS_COMBAT).concat(collectUnits('att', TROOPS_COMBAT));
+    const defenderUnits = collectUnits('def', SHIPS_COMBAT).concat(collectUnits('def', TROOPS_COMBAT)).concat(collectBuildings());
+    const box = document.getElementById('ikcc-result');
+
+    if (attackerUnits.length === 0) {
+      box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Angreifer braucht mindestens eine Einheit.</p>';
+      return;
+    }
+    if (defenderUnits.length === 0) {
+      box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">0 Verteidiger → kein Kampf, reine Plünderung.</p>';
+      return;
+    }
+
+    const result = simulateCombatFull(attackerUnits, defenderUnits);
+    const attSurvives = result.attFinal.some((u) => u.after > 0);
+    const defSurvives = result.defFinal.some((u) => u.after > 0);
+    let winnerText, winnerColor;
+    if (!defSurvives && attSurvives) { winnerText = '🏆 Angreifer siegt — Verteidiger vollständig vernichtet'; winnerColor = '#4ade80'; }
+    else if (!attSurvives && !defSurvives) { winnerText = '💀 Gegenseitige Vernichtung — zählt als abgewehrter Angriff'; winnerColor = '#f87171'; }
+    else { winnerText = '🛡️ Verteidiger hält (max. 6 Runden erreicht)'; winnerColor = '#f0d68a'; }
+
+    let html = '<div style="font-weight:bold;color:' + winnerColor + ';margin-bottom:4px">' + winnerText + '</div>'
+      + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
+      + resultTable('Angreifer', attackerUnits, result.attFinal)
+      + resultTable('Verteidiger', defenderUnits, result.defFinal);
+    box.innerHTML = html;
+  }
+
+  document.getElementById('ikcc-run').addEventListener('click', runCombat);
 })();
