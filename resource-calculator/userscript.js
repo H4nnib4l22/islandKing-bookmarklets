@@ -8,8 +8,8 @@
 // @match        https://islandking.ch/*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/H4nnib4l22/islandKing-bookmarklets/main/resource-calculator/userscript.js
-// @downloadURL  https://raw.githubusercontent.com/H4nnib4l22/islandKing-bookmarklets/main/resource-calculator/userscript.js
+// @downloadURL  https://update.greasyfork.org/scripts/595508/Islandking%20Ressourcenrechner.user.js
+// @updateURL    https://update.greasyfork.org/scripts/595508/Islandking%20Ressourcenrechner.meta.js
 // ==/UserScript==
 
 /*

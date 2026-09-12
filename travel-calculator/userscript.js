@@ -8,8 +8,8 @@
 // @match        https://islandking.ch/*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/H4nnib4l22/islandKing-bookmarklets/main/travel-calculator/userscript.js
-// @downloadURL  https://raw.githubusercontent.com/H4nnib4l22/islandKing-bookmarklets/main/travel-calculator/userscript.js
+// @downloadURL  https://update.greasyfork.org/scripts/595510/Islandking%20Reisezeitenrechner.user.js
+// @updateURL    https://update.greasyfork.org/scripts/595510/Islandking%20Reisezeitenrechner.meta.js
 // ==/UserScript==
 
 /*

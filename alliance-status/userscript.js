@@ -8,8 +8,8 @@
 // @match        https://islandking.ch/*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/H4nnib4l22/islandKing-bookmarklets/main/alliance-status/userscript.js
-// @downloadURL  https://raw.githubusercontent.com/H4nnib4l22/islandKing-bookmarklets/main/alliance-status/userscript.js
+// @downloadURL  https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.user.js
+// @updateURL    https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.meta.js
 // ==/UserScript==
 
 /*
