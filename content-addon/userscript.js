@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.0
+// @version      1.2.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung) und Schnell-Buttons (+5/+10/+20/+50/+100/leeren) in der Kaserne.
 // @author       Oscar
 // @license      MIT
@@ -10,8 +10,8 @@
 // @match        https://islandking.ch/barracks
 // @grant        none
 // @run-at       document-idle
-// @downloadURL  https://update.greasyfork.org/scripts/595511/Islandking%20Content%20Addon.user.js
-// @updateURL    https://update.greasyfork.org/scripts/595511/Islandking%20Content%20Addon.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/595584/Islandking%20Content%20Addon.user.js
+// @updateURL    https://update.greasyfork.org/scripts/595584/Islandking%20Content%20Addon.meta.js
 // ==/UserScript==
 
 /*
