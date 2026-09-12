@@ -49,7 +49,7 @@
   // Oeffnen nur unter das unterste bereits offene Panel DERSELBEN Seite ein.
   function computeStackTop(side) {
     const others = document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]');
-    let maxBottom = 20;
+    let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
