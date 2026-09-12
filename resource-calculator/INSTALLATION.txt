@@ -1,0 +1,88 @@
+Islandking Ressourcenrechner — Installationsanleitung (für Einsteiger)
+========================================================================
+
+WAS DAS IST
+Ein Knopf für deine Lesezeichenleiste im Browser. Klickst du drauf,
+während du auf islandking.ch bist, öffnet sich rechts ein kleines
+Fenster. Dort wählst du z.B. "Schlachtschiff" aus und bekommst gesagt,
+wie lange es dauert, bis du es dir leisten kannst und fertig gebaut hast.
+
+Du musst dafür NICHTS installieren, keine Erweiterung, keine App —
+nur ein normales Lesezeichen mit einem etwas längeren Inhalt als sonst.
+
+
+SCHRITT-FÜR-SCHRITT (Chrome / Edge — bei Firefox fast identisch)
+
+1. Lesezeichenleiste sichtbar machen
+   Tastenkombination drücken: Strg + Umschalt + B
+   (Die Taste "Umschalt" ist die mit dem Pfeil nach oben, über Strg.)
+   Jetzt siehst du oben im Browser, direkt unter der Adresszeile, eine
+   leere Leiste.
+
+2. Ein neues Lesezeichen anlegen
+   Mit der rechten Maustaste auf diese leere Leiste klicken.
+   Im Menü, das aufklappt, auf "Seite hinzufügen" bzw. "Lesezeichen
+   hinzufügen" klicken.
+   Es öffnet sich ein kleines Fenster mit zwei Feldern: "Name" und "URL".
+
+3. Namen eintragen
+   Ins Feld "Name" schreibst du z.B.:  IK Rechner
+
+4. Code eintragen
+   Öffne die Datei "bookmarklet.url.txt" (liegt im selben Ordner wie
+   diese Anleitung) z.B. mit dem Windows-Editor (Notepad).
+   Markiere darin ALLES (Strg + A) und kopiere es (Strg + C).
+   Der Text ist sehr lang und beginnt mit "javascript:" — das ist
+   richtig so, nicht wundern.
+   Wechsle zurück zum Browser-Fenster von Schritt 2, klicke ins Feld
+   "URL", lösche den Inhalt falls dort schon etwas steht (Strg + A,
+   dann Entf), und füge den kopierten Text ein (Strg + V).
+
+5. Speichern
+   Auf "Speichern" klicken. Fertig — in deiner Lesezeichenleiste steht
+   jetzt "IK Rechner".
+
+
+BENUTZUNG
+
+1. Geh auf islandking.ch und logg dich ein, falls nötig.
+2. Klick in der Lesezeichenleiste auf "IK Rechner".
+   → Rechts öffnet sich das Rechner-Fenster.
+3. Wähle:
+   - Insel (welche deiner Inseln)
+   - Typ (Gebäude, Forschung oder Schiff)
+   - Ziel (z.B. "Schlachtschiff" oder "Bank")
+   - Ziel-Stufe bzw. Anzahl (ist meist schon richtig vorausgefüllt)
+4. Klick auf "Berechnen".
+   → Unten erscheint, wie lange es dauert.
+5. Nochmal auf "IK Rechner" klicken schliesst das Fenster wieder.
+
+
+WENN ETWAS NICHT KLAPPT
+
+• Es passiert nichts beim Klick auf "IK Rechner"
+  → Du bist wahrscheinlich nicht auf islandking.ch. Erst dorthin
+    wechseln, dann nochmal klicken.
+
+• Es steht "Kein access_token gefunden"
+  → Du bist nicht eingeloggt. Auf islandking.ch einloggen, dann
+    nochmal klicken.
+
+• Es steht "Fehler: HTTP 401"
+  → Die Seite einmal neu laden (F5), dann "IK Rechner" nochmal klicken.
+
+• Die angezeigte Zeit kommt dir falsch vor
+  → Oben im Rechner-Fenster steht neben dem Titel eine kleine
+    Versionsnummer, z.B. "v4-2026-09-11". Wurde der Rechner seitdem
+    verbessert, bekommst du eine neue bookmarklet.url.txt-Datei — dann
+    einfach Schritt 2–5 oben nochmal machen (auf das bestehende
+    Lesezeichen "IK Rechner" diesmal mit Rechtsklick → Bearbeiten, und
+    im URL-Feld den kompletten alten Text durch den neuen ersetzen).
+
+
+WARUM DAS SO KOMPLIZIERT AUSSIEHT (kurz erklärt)
+islandking.ch lässt keine "normale" Webseite von aussen auf die
+Spieldaten zugreifen (Sicherheitsmassnahme der Spiel-Seite). Ein
+Lesezeichen mit diesem Extra-Code läuft aber direkt IN der
+islandking.ch-Seite selbst, wenn du draufklickst — deshalb funktioniert
+es trotzdem, ganz ohne Installation.
