@@ -42,22 +42,24 @@
     return h + 'h ' + String(m).padStart(2, '0') + 'm';
   }
 
-  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets: jedes
-  // Panel traegt data-ikbm-panel und reiht sich beim Oeffnen unter das
-  // unterste bereits offene Panel ein (Islandking Alliance Status
-  // Bookmarklet nutzt dieselbe Funktion) - verhindert, dass zwei
-  // gleichzeitig geoeffnete Bookmarklets exakt uebereinander liegen.
-  function computeStackTop() {
-    const others = document.querySelectorAll('[data-ikbm-panel]');
-    let maxBottom = 70;
+  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets: Allianz
+  // Status liegt links, Ressourcenrechner rechts (Nutzerwunsch 2026-09-12,
+  // vorher beide rechts uebereinander gestapelt und unten abgeschnitten).
+  // Jedes Panel traegt data-ikbm-panel + data-ikbm-side und reiht sich beim
+  // Oeffnen nur unter das unterste bereits offene Panel DERSELBEN Seite ein.
+  function computeStackTop(side) {
+    const others = document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]');
+    let maxBottom = 20;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
+  const top = computeStackTop('right');
   const panel = document.createElement('div');
   panel.id = 'ikrc-panel';
   panel.dataset.ikbmPanel = '1';
-  panel.style.cssText = 'position:fixed;top:' + computeStackTop() + 'px;right:20px;width:380px;max-height:80vh;overflow:auto;'
+  panel.dataset.ikbmSide = 'right';
+  panel.style.cssText = 'position:fixed;top:' + top + 'px;right:20px;width:380px;max-height:calc(100vh - ' + top + 'px - 20px);overflow:auto;'
     + 'background:#0f1f33;color:#e6edf3;border:1px solid #2a4365;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'

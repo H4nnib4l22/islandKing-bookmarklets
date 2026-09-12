@@ -99,12 +99,14 @@
   // ---------------------------------------------------------------------
 
   // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets (siehe
-  // auch Islandking Ressourcenrechner-Bookmarklet): jedes Panel traegt
-  // data-ikbm-panel und reiht sich beim Oeffnen unter das unterste bereits
-  // offene Panel ein, statt exakt uebereinander zu liegen.
-  function computeStackTop() {
-    const others = document.querySelectorAll('[data-ikbm-panel]');
-    let maxBottom = 70;
+  // auch Islandking Ressourcenrechner-Bookmarklet): Allianz Status liegt
+  // links, Ressourcenrechner rechts (Nutzerwunsch 2026-09-12, vorher beide
+  // rechts uebereinander gestapelt und unten abgeschnitten). Jedes Panel
+  // traegt data-ikbm-panel + data-ikbm-side und reiht sich beim Oeffnen nur
+  // unter das unterste bereits offene Panel DERSELBEN Seite ein.
+  function computeStackTop(side) {
+    const others = document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]');
+    let maxBottom = 20;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
@@ -120,7 +122,8 @@
   const panel = document.createElement('div');
   panel.id = 'ikas-panel';
   panel.dataset.ikbmPanel = '1';
-  panel.style.cssText = 'position:fixed;top:' + computeStackTop() + 'px;right:20px;width:340px;height:' + PANEL_HEIGHT + 'px;display:flex;flex-direction:column;'
+  panel.dataset.ikbmSide = 'left';
+  panel.style.cssText = 'position:fixed;top:' + computeStackTop('left') + 'px;left:20px;width:340px;height:' + PANEL_HEIGHT + 'px;display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex:none">'
