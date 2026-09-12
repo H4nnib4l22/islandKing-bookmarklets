@@ -10,7 +10,7 @@
  * uneingeschraenkt. Kein GitHub-Token, kein Datenrepo, keine
  * bot-hosting.net-Abhaengigkeit noetig.
  *
- * Drei Tabs:
+ * Vier Tabs:
  * - Allianz: GET /api/alliance (+ /api/me zum Rausfiltern des eigenen
  *   Namens), 1:1 die Architektur aus modules/alliance/content.js der
  *   Allianz-Buddy-&-Tango-Suite-Extension, nur ohne deren Hintergrund-
@@ -30,6 +30,15 @@
  *   v1.3.0: roter Punkt am Angriffe-Tab bei neu hinzugekommenen Flotten
  *   (in-memory-Vergleich gegen den letzten Fetch), verschwindet beim
  *   Oeffnen des Tabs.
+ * - Spähposten (v1.4.0): GET /api/islands liefert alle eigenen Inseln,
+ *   GET /api/islands/<id>/incoming liefert je Insel {hasOutpost,
+ *   incoming:[...]} - eigener Spähposten-Fund, NICHT allianzweit wie der
+ *   Angriffe-Tab. Tab bleibt unsichtbar, solange keine eigene Insel einen
+ *   gebauten Spähposten hat (hasOutpost:true bei mind. einer Insel).
+ *   incoming war in allen getesteten Faellen leer ([]) - Feldschema der
+ *   Eintraege daher ungetestet, generisch/tolerant gerendert (gleiches
+ *   Muster wie outgoing beim Angriffe-Tab). Roter Punkt wie beim
+ *   Angriffe-Tab bei neu hinzugekommenen Meldungen.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -176,10 +185,12 @@
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
     + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
+    + '<button id="ikas-tab-scout" class="ikas-tabbtn" style="display:none">Spähposten<span id="ikas-scout-dot" class="dot" hidden></span></button>'
     + '</nav>'
     + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
     + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
     + '<div id="ikas-attacks" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-scout" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
     + '</div>';
   document.body.appendChild(panel);
 
@@ -248,14 +259,18 @@
     document.getElementById('ikas-tab-alliance').classList.toggle('active', tab === 'alliance');
     document.getElementById('ikas-tab-tracked').classList.toggle('active', tab === 'tracked');
     document.getElementById('ikas-tab-attacks').classList.toggle('active', tab === 'attacks');
+    document.getElementById('ikas-tab-scout').classList.toggle('active', tab === 'scout');
     document.getElementById('ikas-alliance').style.display = tab === 'alliance' ? 'block' : 'none';
     document.getElementById('ikas-tracked').style.display = tab === 'tracked' ? 'block' : 'none';
     document.getElementById('ikas-attacks').style.display = tab === 'attacks' ? 'block' : 'none';
+    document.getElementById('ikas-scout').style.display = tab === 'scout' ? 'block' : 'none';
     if (tab === 'attacks') document.getElementById('ikas-attacks-dot').hidden = true;
+    if (tab === 'scout') document.getElementById('ikas-scout-dot').hidden = true;
   }
   document.getElementById('ikas-tab-alliance').onclick = () => activateTab('alliance');
   document.getElementById('ikas-tab-tracked').onclick = () => activateTab('tracked');
   document.getElementById('ikas-tab-attacks').onclick = () => activateTab('attacks');
+  document.getElementById('ikas-tab-scout').onclick = () => activateTab('scout');
   activateTab('alliance');
 
   // ---------------------------------------------------------------------
@@ -525,8 +540,83 @@
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Spähposten-Tab — GET /api/islands (eigene Inseln) + je Insel GET
+  // /api/islands/<id>/incoming, siehe Kommentar am Dateikopf. Anders als
+  // Angriffe: rein eigene Inseln, nicht allianzweit.
+  // ---------------------------------------------------------------------
+
+  function renderScoutEntry(e) {
+    const box = document.createElement('div');
+    box.className = 'box';
+    const info = document.createElement('div');
+    info.className = 'info';
+    const label = e.player || e.name || e.owner || '?';
+    const coords = (e.x != null && e.y != null) ? ` (${e.x}|${e.y})` : '';
+    const metaParts = [];
+    if (e.islandName) metaParts.push(e.islandName);
+    if (e.count != null) metaParts.push(`${e.count} Flotte(n)`);
+    const eta = e.arriveAt ? formatCountdown(e.arriveAt) : null;
+    if (eta) metaParts.push('Ankunft in ' + eta);
+    info.innerHTML = `<div class="name">🔭 ${label}${coords}</div>`
+      + `<div class="meta">${metaParts.join(' · ') || 'Details unbekannt'}</div>`;
+    box.appendChild(info);
+    return box;
+  }
+
+  // Gleiches in-memory-Vergleichsmuster wie knownFleetKeys beim Angriffe-Tab.
+  let knownScoutKeys = null;
+
+  async function renderScout() {
+    const body = document.getElementById('ikas-scout');
+    const tabBtn = document.getElementById('ikas-tab-scout');
+    let islands;
+    let results;
+    try {
+      islands = await apiFetch('/api/islands');
+      results = await Promise.all(islands.map((isl) =>
+        apiFetch('/api/islands/' + isl.id + '/incoming').then((d) => ({ isl, d }))));
+    } catch (err) {
+      tabBtn.style.display = 'none';
+      return;
+    }
+
+    const withOutpost = results.filter((r) => r.d && r.d.hasOutpost);
+    tabBtn.style.display = withOutpost.length ? '' : 'none';
+    if (!withOutpost.length) {
+      if (activeTabName === 'scout') activateTab('alliance');
+      return;
+    }
+
+    const currentKeys = new Set();
+    withOutpost.forEach((r) => {
+      (r.d.incoming || []).forEach((e) => currentKeys.add(r.isl.id + '|' + JSON.stringify(e)));
+    });
+    const hasNew = knownScoutKeys && [...currentKeys].some((k) => !knownScoutKeys.has(k));
+    knownScoutKeys = currentKeys;
+    if (hasNew && activeTabName !== 'scout') document.getElementById('ikas-scout-dot').hidden = false;
+
+    body.innerHTML = '';
+    withOutpost.forEach((r) => {
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      const coords = r.isl.coordinates ? ` (${r.isl.coordinates.x} | ${r.isl.coordinates.y})` : '';
+      label.textContent = `🔭 ${r.isl.name}${coords}`;
+      body.appendChild(label);
+      const entries = r.d.incoming || [];
+      if (!entries.length) {
+        const none = document.createElement('div');
+        none.className = 'status';
+        none.textContent = 'Keine herannahenden Flotten.';
+        body.appendChild(none);
+      } else {
+        entries.forEach((e) => body.appendChild(renderScoutEntry(e)));
+      }
+    });
+  }
+
   async function refreshAll() {
-    await Promise.all([renderAlliance(), renderTracked(), renderAttacks()]);
+    await Promise.all([renderAlliance(), renderTracked(), renderAttacks(), renderScout()]);
   }
 
   const refreshHandle = setInterval(refreshAll, REFRESH_MS);

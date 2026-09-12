@@ -13,7 +13,11 @@ Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   **Angriffe**-Tab mit allen laufenden Flottenbewegungen der Allianz
   (eingehend/ausgehend, Ziel, Koordinaten, Ankunfts-Countdown) samt rotem
   Benachrichtigungspunkt am Tab bei neu hinzugekommenen Flotten, der beim
-  Öffnen des Tabs wieder verschwindet.
+  Öffnen des Tabs wieder verschwindet. Ein **Spähposten**-Tab zeigt die
+  Meldungen der eigenen gebauten Spähposten (herannahende Flotten je
+  eigener Insel) — erscheint erst, sobald mindestens eine eigene Insel
+  einen Spähposten hat, mit demselben Benachrichtigungspunkt-Muster wie
+  Angriffe.
 - **Ressourcenrechner** (`resource-calculator/`) — Overlay-Panel, das für
   Gebäude/Forschung/Schiff die volle Voraussetzungskette samt Kosten,
   Bauzeit und Ansparzeit aus Lager + Produktion berechnet.
