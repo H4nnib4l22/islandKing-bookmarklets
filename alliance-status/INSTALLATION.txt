@@ -4,7 +4,7 @@ Islandking Alliance Status — Bookmarklet
 Was das ist
 -----------
 Zeigt deine Allianzmitglieder in einem Overlay-Panel auf islandking.ch, mit
-zwei Tabs:
+drei Tabs:
 
 - Allianz: Online-/Offline-Status, "zuletzt online" (grobe Schätzung, siehe
   unten), Favoriten-Button (📌) mit eigener Gruppe oben im Panel. Die
@@ -16,11 +16,14 @@ zwei Tabs:
   automatisch wieder da. Zeigt Online-Status, Allianz-Tag, Rang und
   Punkte (GET /api/rankings?q=<name>, gleiches same-origin-Muster wie der
   Allianz-Tab).
+- Angriffe: laufende Flottenbewegungen der ganzen Allianz, eingehend und
+  ausgehend, mit Zielspieler, Insel, Koordinaten und Ankunfts-Countdown
+  (GET /api/alliance/fleets, serverseitig schon nach Allianz gefiltert).
 
 Nutzt AUSSCHLIESSLICH islandking.chs eigene API (GET /api/alliance,
-/api/me, /api/rankings) - kein GitHub-Token, kein externes Datenrepo, kein
-Login/Setup nötig. Läuft mit dem Bearer-Token, den die Seite selbst schon
-in deinem Browser gespeichert hat.
+/api/me, /api/rankings, /api/alliance/fleets) - kein GitHub-Token, kein
+externes Datenrepo, kein Login/Setup nötig. Läuft mit dem Bearer-Token, den
+die Seite selbst schon in deinem Browser gespeichert hat.
 
 "Zuletzt online" ist eine Schätzung: die API liefert selbst keinen
 Last-Seen-Wert, das Panel merkt sich pro Mitglied/Namen nur, wann er
@@ -58,9 +61,9 @@ Kein Sicherheitshinweis zu Tokens nötig (anders als beim eingestampften
 GitHub-Bookmarklet-Versuch) - hier steckt kein eigener Zugangsschlüssel im
 Code, nur dein ganz normaler islandking.ch-Login wird mitverwendet.
 
-Nur im Tampermonkey-Userscript (nicht im Bookmarklet): Header ist
-ein-/ausklappbar (▾/▸ auf die Überschrift klicken — bleibt immer
+Header ist ein-/ausklappbar (▾/▸ auf die Überschrift klicken — bleibt immer
 sichtbar, darunter angedockte Panels rücken automatisch nach) und hat
 rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts andocken).
 Beide Einstellungen merkt sich der Browser (localStorage) über
-Reloads hinweg.
+Reloads hinweg — gilt für Bookmarklet und Tampermonkey-Userscript
+gleichermaßen.

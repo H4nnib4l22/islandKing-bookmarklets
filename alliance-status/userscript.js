@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.1
-// @description  Allianz-Overlay mit Online-Status, Favoriten und Verfolgt-Liste — ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.2.0
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste und laufenden Allianz-Angriffen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -33,6 +33,13 @@
  *   eigenen Allianz), je einzeln ueber GET /api/rankings?q=<name> gesucht -
  *   1:1 das Verfolgt-Tab-Muster aus der eigenstaendigen "Islandking
  *   Alliance Status"-Extension (content.js trackedTick/apiFetch).
+ * - Angriffe (v1.2.0): GET /api/alliance/fleets liefert bereits
+ *   serverseitig nach Allianz gefiltert {incoming:[...], outgoing:[...]}
+ *   (Feldschema je Eintrag laut HAR-Capture islandking.ch_ally.har:
+ *   player, playerId, islandName, x, y, count, arriveAt, remainingSeconds -
+ *   outgoing war im Capture leer, Feldnamen dort ungetestet, daher generisch
+ *   gerendert). Gleicher Endpoint wie im Attack-Notifier (background.js),
+ *   dort aber nur die incoming-Haelfte fuer Notifications genutzt.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -178,9 +185,11 @@
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;flex:none">'
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
+    + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe</button>'
     + '</nav>'
     + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
     + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
     + '</div>';
   document.body.appendChild(panel);
 
@@ -245,11 +254,14 @@
   function activateTab(tab) {
     document.getElementById('ikas-tab-alliance').classList.toggle('active', tab === 'alliance');
     document.getElementById('ikas-tab-tracked').classList.toggle('active', tab === 'tracked');
+    document.getElementById('ikas-tab-attacks').classList.toggle('active', tab === 'attacks');
     document.getElementById('ikas-alliance').style.display = tab === 'alliance' ? 'block' : 'none';
     document.getElementById('ikas-tracked').style.display = tab === 'tracked' ? 'block' : 'none';
+    document.getElementById('ikas-attacks').style.display = tab === 'attacks' ? 'block' : 'none';
   }
   document.getElementById('ikas-tab-alliance').onclick = () => activateTab('alliance');
   document.getElementById('ikas-tab-tracked').onclick = () => activateTab('tracked');
+  document.getElementById('ikas-tab-attacks').onclick = () => activateTab('attacks');
   activateTab('alliance');
 
   // ---------------------------------------------------------------------
@@ -430,8 +442,84 @@
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Angriffe-Tab — GET /api/alliance/fleets, siehe Kommentar am Dateikopf.
+  // ---------------------------------------------------------------------
+
+  function formatCountdown(iso) {
+    const ms = new Date(iso).getTime() - Date.now();
+    if (Number.isNaN(ms)) return '?';
+    if (ms <= 0) return 'eingetroffen';
+    const s = Math.round(ms / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+  }
+
+  function renderFleetBox(f) {
+    const box = document.createElement('div');
+    box.className = 'box';
+    const info = document.createElement('div');
+    info.className = 'info';
+    const coords = (f.x != null && f.y != null) ? ` (${f.x}|${f.y})` : '';
+    const metaParts = [];
+    if (f.islandName) metaParts.push(f.islandName);
+    if (f.count != null) metaParts.push(`${f.count} Flotte(n)`);
+    metaParts.push('Ankunft in ' + formatCountdown(f.arriveAt));
+    info.innerHTML = `<div class="name">⚔️ ${f.player || '?'}${coords}</div>`
+      + `<div class="meta">${metaParts.join(' · ')}</div>`;
+    box.appendChild(info);
+    return box;
+  }
+
+  async function renderAttacks() {
+    const body = document.getElementById('ikas-attacks');
+    let data;
+    try {
+      data = await apiFetch('/api/alliance/fleets');
+    } catch (err) {
+      body.innerHTML = `<div class="status error">Fehler: ${describeError(err)}</div>`;
+      return;
+    }
+
+    const incoming = (Array.isArray(data?.incoming) ? data.incoming : [])
+      .slice().sort((a, b) => new Date(a.arriveAt) - new Date(b.arriveAt));
+    const outgoing = (Array.isArray(data?.outgoing) ? data.outgoing : [])
+      .slice().sort((a, b) => new Date(a.arriveAt) - new Date(b.arriveAt));
+
+    body.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'status';
+    title.textContent = `${incoming.length} eingehend · ${outgoing.length} ausgehend`;
+    body.appendChild(title);
+
+    if (!incoming.length && !outgoing.length) {
+      const none = document.createElement('div');
+      none.className = 'status';
+      none.textContent = 'Keine laufenden Angriffe.';
+      body.appendChild(none);
+      return;
+    }
+
+    if (incoming.length) {
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      label.textContent = '🛡️ Eingehend';
+      body.appendChild(label);
+      for (const f of incoming) body.appendChild(renderFleetBox(f));
+    }
+    if (outgoing.length) {
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      label.textContent = '🚀 Ausgehend';
+      body.appendChild(label);
+      for (const f of outgoing) body.appendChild(renderFleetBox(f));
+    }
+  }
+
   async function refreshAll() {
-    await Promise.all([renderAlliance(), renderTracked()]);
+    await Promise.all([renderAlliance(), renderTracked(), renderAttacks()]);
   }
 
   const refreshHandle = setInterval(refreshAll, REFRESH_MS);

@@ -1,6 +1,8 @@
 /*
  * Islandking Alliance Status — Bookmarklet
- * Laeuft als Panel-Overlay auf islandking.ch, keine Installation.
+ * Laeuft als Panel-Overlay auf islandking.ch, keine Installation (baugleich
+ * zum Tampermonkey-Userscript in diesem Ordner, nur oeffnet es sich hier
+ * per Klick statt automatisch beim Laden der Seite).
  *
  * Nutzt ausschliesslich islandking.chs EIGENE API (same-origin) statt eines
  * externen GitHub-Datenrepos - die CSP der Seite (connect-src 'self')
@@ -8,7 +10,7 @@
  * uneingeschraenkt. Kein GitHub-Token, kein Datenrepo, keine
  * bot-hosting.net-Abhaengigkeit noetig.
  *
- * Zwei Tabs:
+ * Drei Tabs:
  * - Allianz: GET /api/alliance (+ /api/me zum Rausfiltern des eigenen
  *   Namens), 1:1 die Architektur aus modules/alliance/content.js der
  *   Allianz-Buddy-&-Tango-Suite-Extension, nur ohne deren Hintergrund-
@@ -18,6 +20,13 @@
  *   eigenen Allianz), je einzeln ueber GET /api/rankings?q=<name> gesucht -
  *   1:1 das Verfolgt-Tab-Muster aus der eigenstaendigen "Islandking
  *   Alliance Status"-Extension (content.js trackedTick/apiFetch).
+ * - Angriffe: GET /api/alliance/fleets liefert bereits serverseitig nach
+ *   Allianz gefiltert {incoming:[...], outgoing:[...]} (Feldschema je
+ *   Eintrag laut HAR-Capture islandking.ch_ally.har: player, playerId,
+ *   islandName, x, y, count, arriveAt, remainingSeconds - outgoing war im
+ *   Capture leer, Feldnamen dort ungetestet, daher generisch gerendert).
+ *   Gleicher Endpoint wie im Attack-Notifier (background.js), dort aber
+ *   nur die incoming-Haelfte fuer Notifications genutzt.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -98,45 +107,115 @@
   // UI-Grundgeruest
   // ---------------------------------------------------------------------
 
-  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets (siehe
-  // auch Islandking Ressourcenrechner-Bookmarklet): Allianz Status liegt
-  // links, Ressourcenrechner rechts (Nutzerwunsch 2026-09-12, vorher beide
-  // rechts uebereinander gestapelt und unten abgeschnitten). Jedes Panel
-  // traegt data-ikbm-panel + data-ikbm-side und reiht sich beim Oeffnen nur
-  // unter das unterste bereits offene Panel DERSELBEN Seite ein.
-  function computeStackTop(side) {
-    const others = document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]');
+  function readPref(key, fallback) {
+    try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function writePref(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
+  }
+
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
+  // Userscripts: dockt je Seite unter das unterste bereits offene Panel
+  // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
+  // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
+  // (window.__ikbmSeq, geteilt ueber ALLE Scripts hinweg, da @grant none
+  // -> gleiches window). Beim Stacken zaehlen nur Panels mit KLEINERER
+  // Seq (= frueher erzeugt), nie juengere — sonst wuerden sich zwei
+  // gleichseitige, unabhaengig per Intervall pollende Panels gegenseitig
+  // beobachten und bei jedem Tick unbegrenzt nach unten aufschaukeln (A
+  // reagiert auf B's letzten Stand, B auf A's gerade aktualisierten).
+  function nextPanelSeq() {
+    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
+    return window.__ikbmSeq;
+  }
+  function computeStackTop(side, selfSeq) {
+    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
+      .filter((el) => Number(el.dataset.ikbmSeq) < selfSeq);
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
+  const PANEL_ID = 'ikas-panel';
+  const SIDE_KEY = 'ikbm-side-' + PANEL_ID;
+  const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
+  const side = readPref(SIDE_KEY, 'left');
+  const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
+  const seq = nextPanelSeq();
+
   // Feste Panel-Hoehe statt max-height:82vh - eine lange Mitgliederliste
   // liess das Panel bis zu 82% des Viewports einnehmen und drueckte das
-  // naechste gestapelte Bookmarklet-Panel weit nach unten aus der
-  // Sichtbarkeit (Nutzer-Feedback). Nur die beiden Tab-Bodies scrollen
-  // jetzt intern (eigenes overflow:auto), Header/Tabs bleiben fix sichtbar.
+  // naechste gestapelte Panel weit nach unten aus der Sichtbarkeit
+  // (Nutzer-Feedback). Nur die beiden Tab-Bodies scrollen jetzt intern
+  // (eigenes overflow:auto), Header/Tabs bleiben fix sichtbar. Gilt nur
+  // im ausgeklappten Zustand — eingeklappt schrumpft das Panel auf die
+  // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
+  const TITLE = '🤝 Allianz Status';
 
   const panel = document.createElement('div');
-  panel.id = 'ikas-panel';
+  panel.id = PANEL_ID;
   panel.dataset.ikbmPanel = '1';
-  panel.dataset.ikbmSide = 'left';
-  panel.style.cssText = 'position:fixed;top:' + computeStackTop('left') + 'px;left:20px;width:340px;height:' + PANEL_HEIGHT + 'px;display:flex;flex-direction:column;'
+  panel.dataset.ikbmSide = side;
+  panel.dataset.ikbmSeq = seq;
+  panel.style.cssText = 'position:fixed;width:380px;display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex:none">'
-    + '<b>🤝 Allianz Status</b>'
-    + '<span id="ikas-close" style="cursor:pointer;opacity:.7">✕</span></div>'
+  panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE + '</b>'
+    + '<span style="display:flex;gap:10px;align-items:center">'
+    + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+    + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
+    + '</span></div>'
+    + '<div data-role="body" style="display:flex;flex-direction:column;flex:1;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;flex:none">'
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
+    + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe</button>'
     + '</nav>'
     + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>';
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '</div>';
   document.body.appendChild(panel);
-  document.getElementById('ikas-close').onclick = () => { clearInterval(refreshHandle); panel.remove(); };
+
+  const header = panel.querySelector('[data-role="header"]');
+  const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+  const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+  const closeBtn = panel.querySelector('[data-role="close"]');
+  const panelBody = panel.querySelector('[data-role="body"]');
+
+  function applyHeight() { panel.style.height = panelBody.hidden ? 'auto' : PANEL_HEIGHT + 'px'; }
+  applyHeight();
+
+  collapseToggle.addEventListener('click', () => {
+    const next = !panelBody.hidden;
+    panelBody.hidden = next;
+    collapseToggle.textContent = (next ? '▸ ' : '▾ ') + TITLE;
+    header.style.marginBottom = next ? '0' : '8px';
+    writePref(COLLAPSED_KEY, next ? '1' : '0');
+    applyHeight();
+  });
+
+  sideToggle.addEventListener('click', () => {
+    const next = panel.dataset.ikbmSide === 'left' ? 'right' : 'left';
+    panel.dataset.ikbmSide = next;
+    sideToggle.title = 'Seite wechseln (aktuell: ' + (next === 'left' ? 'links' : 'rechts') + ')';
+    writePref(SIDE_KEY, next);
+  });
+
+  function reposition() {
+    const s = panel.dataset.ikbmSide;
+    const top = computeStackTop(s, seq);
+    panel.style.top = top + 'px';
+    if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
+    else { panel.style.right = '20px'; panel.style.left = ''; }
+  }
+  reposition();
+  const repositionHandle = setInterval(reposition, 250);
+
+  closeBtn.onclick = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); panel.remove(); };
 
   const style = document.createElement('style');
   style.textContent = '#ikas-panel .ikas-tabbtn{flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'
@@ -162,11 +241,14 @@
   function activateTab(tab) {
     document.getElementById('ikas-tab-alliance').classList.toggle('active', tab === 'alliance');
     document.getElementById('ikas-tab-tracked').classList.toggle('active', tab === 'tracked');
+    document.getElementById('ikas-tab-attacks').classList.toggle('active', tab === 'attacks');
     document.getElementById('ikas-alliance').style.display = tab === 'alliance' ? 'block' : 'none';
     document.getElementById('ikas-tracked').style.display = tab === 'tracked' ? 'block' : 'none';
+    document.getElementById('ikas-attacks').style.display = tab === 'attacks' ? 'block' : 'none';
   }
   document.getElementById('ikas-tab-alliance').onclick = () => activateTab('alliance');
   document.getElementById('ikas-tab-tracked').onclick = () => activateTab('tracked');
+  document.getElementById('ikas-tab-attacks').onclick = () => activateTab('attacks');
   activateTab('alliance');
 
   // ---------------------------------------------------------------------
@@ -347,8 +429,84 @@
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Angriffe-Tab — GET /api/alliance/fleets, siehe Kommentar am Dateikopf.
+  // ---------------------------------------------------------------------
+
+  function formatCountdown(iso) {
+    const ms = new Date(iso).getTime() - Date.now();
+    if (Number.isNaN(ms)) return '?';
+    if (ms <= 0) return 'eingetroffen';
+    const s = Math.round(ms / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+  }
+
+  function renderFleetBox(f) {
+    const box = document.createElement('div');
+    box.className = 'box';
+    const info = document.createElement('div');
+    info.className = 'info';
+    const coords = (f.x != null && f.y != null) ? ` (${f.x}|${f.y})` : '';
+    const metaParts = [];
+    if (f.islandName) metaParts.push(f.islandName);
+    if (f.count != null) metaParts.push(`${f.count} Flotte(n)`);
+    metaParts.push('Ankunft in ' + formatCountdown(f.arriveAt));
+    info.innerHTML = `<div class="name">⚔️ ${f.player || '?'}${coords}</div>`
+      + `<div class="meta">${metaParts.join(' · ')}</div>`;
+    box.appendChild(info);
+    return box;
+  }
+
+  async function renderAttacks() {
+    const body = document.getElementById('ikas-attacks');
+    let data;
+    try {
+      data = await apiFetch('/api/alliance/fleets');
+    } catch (err) {
+      body.innerHTML = `<div class="status error">Fehler: ${describeError(err)}</div>`;
+      return;
+    }
+
+    const incoming = (Array.isArray(data?.incoming) ? data.incoming : [])
+      .slice().sort((a, b) => new Date(a.arriveAt) - new Date(b.arriveAt));
+    const outgoing = (Array.isArray(data?.outgoing) ? data.outgoing : [])
+      .slice().sort((a, b) => new Date(a.arriveAt) - new Date(b.arriveAt));
+
+    body.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'status';
+    title.textContent = `${incoming.length} eingehend · ${outgoing.length} ausgehend`;
+    body.appendChild(title);
+
+    if (!incoming.length && !outgoing.length) {
+      const none = document.createElement('div');
+      none.className = 'status';
+      none.textContent = 'Keine laufenden Angriffe.';
+      body.appendChild(none);
+      return;
+    }
+
+    if (incoming.length) {
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      label.textContent = '🛡️ Eingehend';
+      body.appendChild(label);
+      for (const f of incoming) body.appendChild(renderFleetBox(f));
+    }
+    if (outgoing.length) {
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      label.textContent = '🚀 Ausgehend';
+      body.appendChild(label);
+      for (const f of outgoing) body.appendChild(renderFleetBox(f));
+    }
+  }
+
   async function refreshAll() {
-    await Promise.all([renderAlliance(), renderTracked()]);
+    await Promise.all([renderAlliance(), renderTracked(), renderAttacks()]);
   }
 
   const refreshHandle = setInterval(refreshAll, REFRESH_MS);
