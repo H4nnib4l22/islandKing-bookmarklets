@@ -1,0 +1,47 @@
+Islandking Reisezeitenrechner — Bookmarklet
+============================================
+
+Was das ist
+-----------
+Zeigt ein Overlay-Panel unten auf islandking.ch mit zwei Koordinaten-
+Feldern (Start/Ziel) und einem Schiffstempo-Dropdown. Sobald beide
+Koordinaten ausgefüllt sind, siehst du sofort:
+
+- Luftlinien-Distanz und Fahrtzeit (einfach + Hin & Rückfahrt) für das
+  gewählte Bezugsschiff, plus Ankunftszeit (ETA)
+- eine Vergleichstabelle mit Fahrtzeit UND Rückkehr-Uhrzeit für ALLE
+  Schiffstypen auf dieselbe Strecke
+
+Reine Koordinaten-Rechnung, exakt dieselbe Formel wie im Schattenflotte
+Taktischer Koordinator ("🧭 Exakter Reisezeitenrechner"-Tab). Braucht
+KEINEN API-Zugriff, KEINEN Login-Token, KEINE Netzwerkanfrage — läuft
+komplett offline im Browser, sobald du auf islandking.ch bist.
+
+Öffnest du gleichzeitig Allianz Status und/oder Ressourcenrechner,
+kollidiert dieses Panel mit keinem der beiden — es sitzt unten mittig,
+die anderen oben links/rechts.
+
+Einrichtung
+-----------
+1. bookmarklet.js komplett öffnen und den kompletten Inhalt kopieren.
+2. Neues Lesezeichen im Browser anlegen, als Adresse einfügen:
+   javascript:(function(){...})()   ← "javascript:" direkt vor den
+   kopierten Code schreiben (ohne Leerzeichen dazwischen), Name z.B.
+   "Reisezeitenrechner".
+   Tipp: einfacher geht's mit dem PowerShell-Einzeiler unten, der das
+   automatisch für dich zusammenbaut.
+3. Auf islandking.ch das Lesezeichen anklicken - Panel öffnet sich unten
+   mittig. Erneutes Klicken schließt es wieder.
+
+PowerShell-Einzeiler (im Ordner dieser Datei, baut bookmarklet.url.txt):
+
+  $src = Get-Content -Raw -Encoding UTF8 bookmarklet.js
+  $encoded = [System.Uri]::EscapeDataString($src)
+  Set-Content -Path bookmarklet.url.txt -Value ("javascript:" + $encoded) -NoNewline -Encoding utf8
+
+Danach bookmarklet.url.txt öffnen, kompletten Inhalt als Lesezeichen-
+Adresse einfügen.
+
+Alternativ als Tampermonkey-Userscript: userscript.js öffnen, Inhalt
+kopieren, in Tampermonkey "Neues Script" einfügen, speichern — läuft
+dann automatisch auf jeder islandking.ch-Seite.

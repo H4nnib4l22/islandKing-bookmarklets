@@ -1,10 +1,11 @@
 # Islandking Bookmarklets
 
-Zwei Browser-Add-ons für islandking.ch, wahlweise als Bookmarklet (Klick
+Drei Browser-Add-ons für islandking.ch, wahlweise als Bookmarklet (Klick
 zum Öffnen, kein Install) oder als Tampermonkey-Userscript (öffnet
 automatisch beim Laden der Seite, kein Copy-Paste bei jeder Änderung
-mehr nötig). Beide Varianten laufen same-origin direkt in der Seite mit
-deinem eigenen Bearer-Token — kein GitHub-Token, kein externes Datenrepo.
+mehr nötig). Alle Varianten laufen same-origin direkt in der Seite —
+Allianz Status und Ressourcenrechner mit deinem eigenen Bearer-Token,
+kein GitHub-Token, kein externes Datenrepo.
 
 - **Allianz Status** (`alliance-status/`) — Overlay-Panel mit Online-Status
   und "zuletzt online" für alle Allianzmitglieder, Favoriten, und eine
@@ -12,9 +13,12 @@ deinem eigenen Bearer-Token — kein GitHub-Token, kein externes Datenrepo.
 - **Ressourcenrechner** (`resource-calculator/`) — Overlay-Panel, das für
   Gebäude/Forschung/Schiff die volle Voraussetzungskette samt Kosten,
   Bauzeit und Ansparzeit aus Lager + Produktion berechnet.
+- **Reisezeitenrechner** (`travel-calculator/`) — Overlay-Panel, das aus
+  zwei Koordinaten Distanz, Fahrtzeit und ETA für alle Schiffstypen
+  berechnet. Reine Rechnerei ohne API/Token/Netzwerk.
 
-Beide Panels erkennen sich gegenseitig und ordnen sich automatisch an:
-Allianz Status links, Ressourcenrechner rechts.
+Alle drei Panels erkennen sich gegenseitig: Allianz Status links,
+Ressourcenrechner rechts, Reisezeitenrechner unten mittig.
 
 **Bookmarklet-Installation:** siehe `INSTALLATION.txt` im jeweiligen
 Unterordner, oder komplettes Bundle als `islandking-bookmarklets.zip`.
