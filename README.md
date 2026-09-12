@@ -17,16 +17,18 @@ kein GitHub-Token, kein externes Datenrepo.
   zwei Koordinaten Distanz, Fahrtzeit und ETA für alle Schiffstypen
   berechnet. Reine Rechnerei ohne API/Token/Netzwerk. Nur im
   Tampermonkey-Userscript (nicht im Bookmarklet) zusätzlich mit einem
-  eigenen **⚔️ Kampfrechner**-Panel daneben (links) — volle Kampfformel
-  aus dem Schattenflotte Taktischer Koordinator (444/445 echte Kämpfe
-  exakt), Angreifer/Verteidiger-Stückzahlen für alle Schiffs- und
-  Truppentypen sowie Verteidigungsanlagen, Ergebnis inkl. Sieger,
-  Rundenzahl und Verlusten je Einheitentyp.
+  eigenen **⚔️ Kampfrechner**-Panel darunter — volle Kampfformel aus dem
+  Schattenflotte Taktischer Koordinator (444/445 echte Kämpfe exakt),
+  Angreifer/Verteidiger-Stückzahlen für alle Schiffs- und Truppentypen
+  sowie Verteidigungsanlagen, Ergebnis inkl. Sieger, Rundenzahl und
+  Verlusten je Einheitentyp.
 
-Alle Panels erkennen sich gegenseitig: Allianz Status und Kampfrechner
-links, Ressourcenrechner und Reisezeitenrechner rechts, jeweils
-übereinander gestapelt (dynamisch — wächst/schrumpft ein Panel,
-rutschen die darunter angedockten automatisch mit).
+Alle Panels erkennen sich gegenseitig und stapeln sich übereinander
+(dynamisch — wächst/schrumpft ein Panel, rutschen die darunter
+angedockten automatisch mit). Reisezeitenrechner und Kampfrechner sind
+zusätzlich einklappbar (Header bleibt sichtbar) und haben ein
+⇄-Symbol zum Seitenwechsel links/rechts — beides merkt sich der
+Browser pro Panel über Reloads hinweg.
 
 **Bookmarklet-Installation:** siehe `INSTALLATION.txt` im jeweiligen
 Unterordner, oder komplettes Bundle als `islandking-bookmarklets.zip`.

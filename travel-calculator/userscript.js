@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.0
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Angreifer vs. Verteidiger)
+// @version      1.2.0
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Angreifer vs. Verteidiger) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -21,6 +21,9 @@
  * Taktischer Koordinator uebernommen (kontinuierlicher HP-Pool, 444/445
  * echte Kaempfe exakt getroffen). Beide brauchen keine API, keinen
  * Login-Token, keine Netzwerkanfrage — reiner Katalog + Formel.
+ * Beide Panels sind ein-/ausklappbar (Header bleibt sichtbar) und koennen
+ * per Klick die Seite (links/rechts) wechseln; Klapp-/Seitenzustand wird
+ * pro Panel in localStorage gemerkt.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -30,6 +33,98 @@
     if (other) other.remove();
     if (other2) other2.remove();
     return;
+  }
+
+  function readPref(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : v;
+    } catch (e) { return fallback; }
+  }
+  function writePref(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
+  }
+
+  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets/-
+  // Userscripts (siehe Allianz Status/Ressourcenrechner): dockt je Seite
+  // unter das unterste bereits offene Panel derselben Seite an, egal aus
+  // welchem Script/welcher Reihenfolge — reine Messung der aktuellen
+  // Bounding-Box, kein hartkodiertes Wissen ueber andere Panels.
+  // excludeEls blendet das eigene Panel (und ggf. weitere) aus der Messung
+  // aus. WICHTIG: excludeEls muss immer auch jedes Panel enthalten, das
+  // erst NACH diesem hier andocken soll (siehe combat.reposition() unten,
+  // das den Reisezeitenrechner ausschliesst) — sonst beobachten sich zwei
+  // gleichseitige Panels gegenseitig und schaukeln sich bei jedem Tick
+  // unbegrenzt nach unten hoch (A schaut auf B's letzten Stand, B auf A's
+  // gerade aktualisierten Stand, u.s.w.).
+  function computeStackTop(side, excludeEls) {
+    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]')).filter((el) => !excludeEls.includes(el));
+    let maxBottom = 100;
+    others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
+    return Math.round(others.length ? maxBottom + 12 : maxBottom);
+  }
+
+  // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
+  // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
+  // sie einen Seitenwechsel/Reload ueberleben. Ressourcenrechner & Co. (aus
+  // den anderen Scripts) haben KEINEN Seiten-Umschalter, respektieren aber
+  // dieselbe data-ikbm-side-Konvention — computeStackTop() docKt also auch
+  // dann korrekt an, wenn eines dieser Panels ueber diesem hier haengt.
+  function createPanel(id, title, width, defaultSide, bodyHtml) {
+    const sideKey = 'ikbm-side-' + id;
+    const collapsedKey = 'ikbm-collapsed-' + id;
+    const side = readPref(sideKey, defaultSide);
+    const collapsed = readPref(collapsedKey, '0') === '1';
+
+    const panel = document.createElement('div');
+    panel.id = id;
+    panel.dataset.ikbmPanel = '1';
+    panel.dataset.ikbmSide = side;
+    panel.style.cssText = 'position:fixed;width:' + width + 'px;overflow:auto;'
+      + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
+      + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+    panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+      + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
+      + '<span style="display:flex;gap:10px;align-items:center">'
+      + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+      + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
+      + '</span></div>'
+      + '<div data-role="body"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
+    document.body.appendChild(panel);
+
+    const header = panel.querySelector('[data-role="header"]');
+    const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+    const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+    const closeBtn = panel.querySelector('[data-role="close"]');
+    const body = panel.querySelector('[data-role="body"]');
+
+    collapseToggle.addEventListener('click', () => {
+      const next = !body.hidden;
+      body.hidden = next;
+      collapseToggle.textContent = (next ? '▸ ' : '▾ ') + title;
+      header.style.marginBottom = next ? '0' : '8px';
+      writePref(collapsedKey, next ? '1' : '0');
+    });
+
+    sideToggle.addEventListener('click', () => {
+      const next = panel.dataset.ikbmSide === 'left' ? 'right' : 'left';
+      panel.dataset.ikbmSide = next;
+      sideToggle.title = 'Seite wechseln (aktuell: ' + (next === 'left' ? 'links' : 'rechts') + ')';
+      writePref(sideKey, next);
+    });
+
+    // alsoExclude: weitere Panels, die bei der Stapel-Messung ignoriert
+    // werden sollen — siehe Kommentar bei computeStackTop() oben.
+    function reposition(alsoExclude) {
+      const s = panel.dataset.ikbmSide;
+      const top = computeStackTop(s, [panel].concat(alsoExclude || []));
+      panel.style.top = top + 'px';
+      if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
+      else { panel.style.right = '20px'; panel.style.left = ''; }
+      panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
+    }
+
+    return { panel, body, reposition, closeBtn };
   }
 
   const SHIPS_LIST = [
@@ -64,29 +159,7 @@
     return null;
   }
 
-  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets/-
-  // Userscripts (siehe Allianz Status/Ressourcenrechner): dockt rechts
-  // unter das unterste bereits offene Panel derselben Seite an.
-  // excludeEl blendet das eigene Panel aus der Messung aus, sonst würde
-  // es sich bei jedem reposition()-Tick unter sich selbst einsortieren.
-  function computeStackTop(side, excludeEl) {
-    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]')).filter((el) => el !== excludeEl);
-    let maxBottom = 100;
-    others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
-    return Math.round(others.length ? maxBottom + 12 : maxBottom);
-  }
-
-  const panel = document.createElement('div');
-  panel.id = 'iktc-panel';
-  panel.dataset.ikbmPanel = '1';
-  panel.dataset.ikbmSide = 'right';
-  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
-    + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
-    + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-    + '<b>🧭 Reisezeitenrechner</b>'
-    + '<span id="iktc-close" style="cursor:pointer;opacity:.7">✕</span></div>'
-    + '<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
+  const travelBodyHtml = '<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
     + '<div style="flex:1;min-width:140px">Start: <input id="iktc-start" placeholder="z. B. -40 | -60" style="width:100%;box-sizing:border-box"></div>'
     + '<div style="flex:1;min-width:140px">Ziel: <input id="iktc-ziel" placeholder="z. B. -10 | -40" style="width:100%;box-sizing:border-box"></div>'
     + '</div>'
@@ -99,24 +172,8 @@
     + '<option value="20" selected>grosses Frachtschiff (Tempo 20/h)</option>'
     + '</select></div>'
     + '<div id="iktc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Start- und Zielkoordinaten eingeben.</p></div>';
-  document.body.appendChild(panel);
 
-  // Ressourcenrechner (rechte Spalte) wächst/schrumpft je nach Eingabe
-  // (z.B. sobald eine Berechnung Ergebnisse zeigt) - kein Resize-Event
-  // dafür vorhanden, daher periodisch neu einsortieren statt einmalig beim
-  // Öffnen. ponytail: Poll statt ResizeObserver/MutationObserver, reicht
-  // für ein simples Overlay-Panel; bei spürbarem Ruckeln auf Observer
-  // umstellen.
-  function reposition() {
-    const top = computeStackTop('right', panel);
-    panel.style.top = top + 'px';
-    panel.style.right = '20px';
-    panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
-  }
-  reposition();
-  const repositionHandle = setInterval(reposition, 250);
-
-  document.getElementById('iktc-close').onclick = () => { clearInterval(repositionHandle); panel.remove(); };
+  const travel = createPanel('iktc-panel', '🧭 Reisezeitenrechner', 380, 'right', travelBodyHtml);
 
   function run() {
     const p1 = parseCoords(document.getElementById('iktc-start').value);
@@ -244,14 +301,6 @@
     return { attFinal, defFinal, rounds, defDestroyed };
   }
 
-  const combatPanel = document.createElement('div');
-  combatPanel.id = 'ikcc-panel';
-  combatPanel.dataset.ikbmPanel = '1';
-  combatPanel.dataset.ikbmSide = 'left';
-  combatPanel.style.cssText = 'position:fixed;width:460px;overflow:auto;'
-    + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
-    + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-
   function unitRow(prefix, u, extra) {
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
       + '<span style="opacity:.85">' + u.name + (extra || '') + '</span>'
@@ -272,10 +321,7 @@
       + '</div>';
   }
 
-  combatPanel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-    + '<b>⚔️ Kampfrechner</b>'
-    + '<span id="ikcc-close" style="cursor:pointer;opacity:.7">✕</span></div>'
-    + '<div style="display:flex;gap:14px;margin-bottom:10px">'
+  const combatBodyHtml = '<div style="display:flex;gap:14px;margin-bottom:10px">'
     + '<div style="flex:1;min-width:0">'
     + '<div style="font-weight:bold;color:#a78bfa;margin-bottom:4px">Angreifer</div>'
     + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
@@ -295,23 +341,16 @@
     + '</div>'
     + '<button id="ikcc-run" style="width:100%;padding:6px;margin-bottom:10px;cursor:pointer">Kämpfen</button>'
     + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
-  document.body.appendChild(combatPanel);
 
-  function repositionCombat() {
-    const top = computeStackTop('left', combatPanel);
-    combatPanel.style.top = top + 'px';
-    combatPanel.style.left = '20px';
-    combatPanel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
-  }
-  repositionCombat();
-  const repositionCombatHandle = setInterval(repositionCombat, 250);
-
-  document.getElementById('ikcc-close').onclick = () => { clearInterval(repositionCombatHandle); combatPanel.remove(); };
+  // Standardmaessig dieselbe Seite wie der Reisezeitenrechner ('right') —
+  // wird als zweites Panel erzeugt, dockt also per computeStackTop() direkt
+  // darunter an, solange beide auf derselben Seite stehen.
+  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 460, 'right', combatBodyHtml);
 
   function collectUnits(prefix, catalog) {
     const units = [];
     catalog.forEach((u) => {
-      const input = combatPanel.querySelector('[data-ikcc-unit="' + prefix + ':' + u.name + '"]');
+      const input = combat.panel.querySelector('[data-ikcc-unit="' + prefix + ':' + u.name + '"]');
       const count = parseInt(input.value) || 0;
       if (count > 0) units.push({ name: u.name, attack: u.attack, hp: u.hp, count });
     });
@@ -322,10 +361,10 @@
     const units = [];
     BUILDINGS_COMBAT.forEach((b) => {
       if (b.fixed) {
-        const box = combatPanel.querySelector('[data-ikcc-bldg-fixed="' + b.name + '"]');
+        const box = combat.panel.querySelector('[data-ikcc-bldg-fixed="' + b.name + '"]');
         if (box.checked) units.push({ name: b.name, attack: b.fixed.attack, hp: b.fixed.hp, count: 1 });
       } else {
-        const input = combatPanel.querySelector('[data-ikcc-bldg-lv="' + b.name + '"]');
+        const input = combat.panel.querySelector('[data-ikcc-bldg-lv="' + b.name + '"]');
         const lv = parseInt(input.value) || 0;
         if (lv > 0) units.push({ name: b.name, attack: b.perLv.attack * lv, hp: b.perLv.hp * lv, count: 1 });
       }
@@ -378,4 +417,28 @@
   }
 
   document.getElementById('ikcc-run').addEventListener('click', runCombat);
+
+  // Ein gemeinsames Intervall reicht: beide Panels lesen bei jedem Tick ihre
+  // eigene (ggf. per Seiten-Umschalter geaenderte) data-ikbm-side neu aus,
+  // reine Bounding-Box-Messung — kein Resize-Event fuer variable Panel-
+  // Hoehen (Ein-/Ausklappen, wachsende Ergebnistabellen) vorhanden.
+  // ponytail: Poll statt ResizeObserver/MutationObserver, reicht für zwei
+  // simple Overlay-Panels; bei spürbarem Ruckeln auf Observer umstellen.
+  //
+  // Reihenfolge ist hier bewusst NICHT symmetrisch: der Reisezeitenrechner
+  // schliesst den Kampfrechner explizit von seiner eigenen Stapel-Messung
+  // aus (reposition([combat.panel])), der Kampfrechner schliesst nichts
+  // Zusaetzliches aus und darf daher den Reisezeitenrechner sehen. Wuerden
+  // sich beide gegenseitig beobachten, schaukelt sich ihr Top-Wert bei
+  // jedem 250ms-Tick unbegrenzt nach unten hoch (A reagiert auf B's alten
+  // Stand, B auf A's neuen — siehe computeStackTop()-Kommentar).
+  function repositionAll() {
+    travel.reposition([combat.panel]);
+    combat.reposition();
+  }
+  repositionAll();
+  const repositionHandle = setInterval(repositionAll, 250);
+
+  travel.closeBtn.onclick = () => { travel.panel.remove(); };
+  combat.closeBtn.onclick = () => { combat.panel.remove(); };
 })();
