@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.0
+// @version      1.3.0
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste und laufenden Allianz-Angriffen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -40,6 +40,9 @@
  *   outgoing war im Capture leer, Feldnamen dort ungetestet, daher generisch
  *   gerendert). Gleicher Endpoint wie im Attack-Notifier (background.js),
  *   dort aber nur die incoming-Haelfte fuer Notifications genutzt.
+ *   v1.3.0: roter Punkt am Angriffe-Tab bei neu hinzugekommenen Flotten
+ *   (in-memory-Vergleich gegen den letzten Fetch), verschwindet beim
+ *   Oeffnen des Tabs.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -185,7 +188,7 @@
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;flex:none">'
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
-    + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe</button>'
+    + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
     + '</nav>'
     + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
     + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
@@ -231,8 +234,9 @@
   closeBtn.onclick = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); panel.remove(); };
 
   const style = document.createElement('style');
-  style.textContent = '#ikas-panel .ikas-tabbtn{flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'
+  style.textContent = '#ikas-panel .ikas-tabbtn{position:relative;flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'
     + '#ikas-panel .ikas-tabbtn.active{background:#1f6feb;border-color:#1f6feb}'
+    + '#ikas-panel .dot{position:absolute;top:2px;right:4px;width:7px;height:7px;border-radius:50%;background:#f2a0a0}'
     + '#ikas-panel .status{font-size:11px;color:#66727f;margin-bottom:8px}'
     + '#ikas-panel .error{color:#f2a0a0}'
     + '#ikas-panel .group-label{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#f0d68a;margin:10px 0 4px;display:flex;align-items:center;gap:4px;cursor:default}'
@@ -251,13 +255,16 @@
     + '#ikas-panel button.add{padding:5px 10px;border:none;border-radius:5px;background:#1f6feb;color:#fff;cursor:pointer;font-size:12px}';
   panel.appendChild(style);
 
+  let activeTabName = 'alliance';
   function activateTab(tab) {
+    activeTabName = tab;
     document.getElementById('ikas-tab-alliance').classList.toggle('active', tab === 'alliance');
     document.getElementById('ikas-tab-tracked').classList.toggle('active', tab === 'tracked');
     document.getElementById('ikas-tab-attacks').classList.toggle('active', tab === 'attacks');
     document.getElementById('ikas-alliance').style.display = tab === 'alliance' ? 'block' : 'none';
     document.getElementById('ikas-tracked').style.display = tab === 'tracked' ? 'block' : 'none';
     document.getElementById('ikas-attacks').style.display = tab === 'attacks' ? 'block' : 'none';
+    if (tab === 'attacks') document.getElementById('ikas-attacks-dot').hidden = true;
   }
   document.getElementById('ikas-tab-alliance').onclick = () => activateTab('alliance');
   document.getElementById('ikas-tab-tracked').onclick = () => activateTab('tracked');
@@ -473,6 +480,14 @@
     return box;
   }
 
+  // Erkennung neuer Flotten seit dem letzten Render — rein in-memory (kein
+  // localStorage), da der Notification-Punkt nur waehrend der aktuellen
+  // Panel-Sitzung Sinn ergibt. knownFleetKeys bleibt bis zum ersten
+  // erfolgreichen Fetch leer -> beim initialen Laden erscheint kein Punkt
+  // fuer bereits laufende Angriffe, nur fuer WIRKLICH neu hinzugekommene.
+  let knownFleetKeys = null;
+  function fleetKey(f) { return [f.player, f.x, f.y, f.arriveAt].join('|'); }
+
   async function renderAttacks() {
     const body = document.getElementById('ikas-attacks');
     let data;
@@ -487,6 +502,11 @@
       .slice().sort((a, b) => new Date(a.arriveAt) - new Date(b.arriveAt));
     const outgoing = (Array.isArray(data?.outgoing) ? data.outgoing : [])
       .slice().sort((a, b) => new Date(a.arriveAt) - new Date(b.arriveAt));
+
+    const currentKeys = new Set([...incoming, ...outgoing].map(fleetKey));
+    const hasNew = knownFleetKeys && [...currentKeys].some((k) => !knownFleetKeys.has(k));
+    knownFleetKeys = currentKeys;
+    if (hasNew && activeTabName !== 'attacks') document.getElementById('ikas-attacks-dot').hidden = false;
 
     body.innerHTML = '';
     const title = document.createElement('div');
