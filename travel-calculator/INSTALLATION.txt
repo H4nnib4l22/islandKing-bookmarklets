@@ -18,8 +18,9 @@ KEINEN API-Zugriff, KEINEN Login-Token, KEINE Netzwerkanfrage — läuft
 komplett offline im Browser, sobald du auf islandking.ch bist.
 
 Öffnest du gleichzeitig Allianz Status und/oder Ressourcenrechner,
-kollidiert dieses Panel mit keinem der beiden — es sitzt unten mittig,
-die anderen oben links/rechts.
+dockt dieses Panel automatisch rechts UNTER dem Ressourcenrechner an —
+wächst oder schrumpft der Ressourcenrechner (z.B. durch eine
+Berechnung), rutscht dieses Panel live mit.
 
 Einrichtung
 -----------
@@ -30,8 +31,9 @@ Einrichtung
    "Reisezeitenrechner".
    Tipp: einfacher geht's mit dem PowerShell-Einzeiler unten, der das
    automatisch für dich zusammenbaut.
-3. Auf islandking.ch das Lesezeichen anklicken - Panel öffnet sich unten
-   mittig. Erneutes Klicken schließt es wieder.
+3. Auf islandking.ch das Lesezeichen anklicken - Panel öffnet sich rechts
+   unter dem Ressourcenrechner (falls offen). Erneutes Klicken schließt
+   es wieder.
 
 PowerShell-Einzeiler (im Ordner dieser Datei, baut bookmarklet.url.txt):
 

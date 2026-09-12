@@ -41,9 +41,23 @@
     return null;
   }
 
+  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets/-
+  // Userscripts (siehe Allianz Status/Ressourcenrechner): dockt rechts
+  // unter das unterste bereits offene Panel derselben Seite an.
+  // excludeEl blendet das eigene Panel aus der Messung aus, sonst würde
+  // es sich bei jedem reposition()-Tick unter sich selbst einsortieren.
+  function computeStackTop(side, excludeEl) {
+    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]')).filter((el) => el !== excludeEl);
+    let maxBottom = 100;
+    others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
+    return Math.round(others.length ? maxBottom + 12 : maxBottom);
+  }
+
   const panel = document.createElement('div');
   panel.id = 'iktc-panel';
-  panel.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:480px;max-height:calc(100vh - 40px);overflow:auto;'
+  panel.dataset.ikbmPanel = '1';
+  panel.dataset.ikbmSide = 'right';
+  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
     + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
@@ -63,7 +77,23 @@
     + '</select></div>'
     + '<div id="iktc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Start- und Zielkoordinaten eingeben.</p></div>';
   document.body.appendChild(panel);
-  document.getElementById('iktc-close').onclick = () => panel.remove();
+
+  // Ressourcenrechner (rechte Spalte) wächst/schrumpft je nach Eingabe
+  // (z.B. sobald eine Berechnung Ergebnisse zeigt) - kein Resize-Event
+  // dafür vorhanden, daher periodisch neu einsortieren statt einmalig beim
+  // Öffnen. ponytail: Poll statt ResizeObserver/MutationObserver, reicht
+  // für ein simples Overlay-Panel; bei spürbarem Ruckeln auf Observer
+  // umstellen.
+  function reposition() {
+    const top = computeStackTop('right', panel);
+    panel.style.top = top + 'px';
+    panel.style.right = '20px';
+    panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
+  }
+  reposition();
+  const repositionHandle = setInterval(reposition, 250);
+
+  document.getElementById('iktc-close').onclick = () => { clearInterval(repositionHandle); panel.remove(); };
 
   function run() {
     const p1 = parseCoords(document.getElementById('iktc-start').value);

@@ -18,7 +18,9 @@ kein GitHub-Token, kein externes Datenrepo.
   berechnet. Reine Rechnerei ohne API/Token/Netzwerk.
 
 Alle drei Panels erkennen sich gegenseitig: Allianz Status links,
-Ressourcenrechner rechts, Reisezeitenrechner unten mittig.
+Ressourcenrechner und Reisezeitenrechner rechts übereinander gestapelt
+(dynamisch — wächst/schrumpft der Ressourcenrechner, rutscht der
+Reisezeitenrechner automatisch mit).
 
 **Bookmarklet-Installation:** siehe `INSTALLATION.txt` im jeweiligen
 Unterordner, oder komplettes Bundle als `islandking-bookmarklets.zip`.
