@@ -1,6 +1,8 @@
 /*
  * Islandking Ressourcenrechner — Bookmarklet
- * Läuft same-origin auf islandking.ch (Panel-Overlay), keine Installation.
+ * Läuft same-origin auf islandking.ch (Panel-Overlay), keine Installation
+ * (baugleich zum Tampermonkey-Userscript in diesem Ordner, nur oeffnet es
+ * sich hier per Klick statt automatisch beim Laden der Seite).
  * Nutzt den vorhandenen /api/islands/:id/tech-path Endpoint, der bereits die
  * volle Voraussetzungskette (Gebäude/Forschung/Schiff) inkl. Gesamtkosten
  * und Bauzeit liefert — wir rechnen nur noch die Ansparzeit aus Lager +
@@ -42,34 +44,93 @@
     return h + 'h ' + String(m).padStart(2, '0') + 'm';
   }
 
-  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets: Allianz
-  // Status liegt links, Ressourcenrechner rechts (Nutzerwunsch 2026-09-12,
-  // vorher beide rechts uebereinander gestapelt und unten abgeschnitten).
-  // Jedes Panel traegt data-ikbm-panel + data-ikbm-side und reiht sich beim
-  // Oeffnen nur unter das unterste bereits offene Panel DERSELBEN Seite ein.
-  function computeStackTop(side) {
-    const others = document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]');
+  function readPref(key, fallback) {
+    try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function writePref(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
+  }
+
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
+  // Userscripts: dockt je Seite unter das unterste bereits offene Panel
+  // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
+  // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
+  // (window.__ikbmSeq, geteilt ueber ALLE Scripts hinweg, da @grant none
+  // -> gleiches window). Beim Stacken zaehlen nur Panels mit KLEINERER
+  // Seq (= frueher erzeugt), nie juengere — sonst wuerden sich zwei
+  // gleichseitige, unabhaengig per Intervall pollende Panels gegenseitig
+  // beobachten und bei jedem Tick unbegrenzt nach unten aufschaukeln (A
+  // reagiert auf B's letzten Stand, B auf A's gerade aktualisierten).
+  function nextPanelSeq() {
+    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
+    return window.__ikbmSeq;
+  }
+  function computeStackTop(side, selfSeq) {
+    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
+      .filter((el) => Number(el.dataset.ikbmSeq) < selfSeq);
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
-  const top = computeStackTop('right');
-  const panel = document.createElement('div');
-  panel.id = 'ikrc-panel';
-  panel.dataset.ikbmPanel = '1';
-  panel.dataset.ikbmSide = 'right';
-  panel.style.cssText = 'position:fixed;top:' + top + 'px;right:20px;width:380px;max-height:calc(100vh - ' + top + 'px - 20px);overflow:auto;'
-    + 'background:#0f1f33;color:#e6edf3;border:1px solid #2a4365;border-radius:8px;'
-    + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-    + '<b>🏝️ Ressourcenrechner <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span></b>'
-    + '<span id="ikrc-close" style="cursor:pointer;opacity:.7">✕</span></div>'
-    + '<div id="ikrc-body">Lade Inseln…</div>';
-  document.body.appendChild(panel);
-  document.getElementById('ikrc-close').onclick = () => panel.remove();
+  const PANEL_ID = 'ikrc-panel';
+  const SIDE_KEY = 'ikbm-side-' + PANEL_ID;
+  const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
+  const side = readPref(SIDE_KEY, 'right');
+  const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
+  const seq = nextPanelSeq();
+  const TITLE_HTML = '🏝️ Ressourcenrechner <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
-  const body = document.getElementById('ikrc-body');
+  const panel = document.createElement('div');
+  panel.id = PANEL_ID;
+  panel.dataset.ikbmPanel = '1';
+  panel.dataset.ikbmSide = side;
+  panel.dataset.ikbmSeq = seq;
+  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
+    + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
+    + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+  panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE_HTML + '</b>'
+    + '<span style="display:flex;gap:10px;align-items:center">'
+    + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+    + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
+    + '</span></div>'
+    + '<div data-role="body" id="ikrc-body"' + (collapsed ? ' hidden' : '') + '>Lade Inseln…</div>';
+  document.body.appendChild(panel);
+
+  const header = panel.querySelector('[data-role="header"]');
+  const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+  const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+  const closeBtn = panel.querySelector('[data-role="close"]');
+  const body = panel.querySelector('[data-role="body"]'); // = #ikrc-body, weiter unten unveraendert per getElementById genutzt
+
+  collapseToggle.addEventListener('click', () => {
+    const next = !body.hidden;
+    body.hidden = next;
+    collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE_HTML;
+    header.style.marginBottom = next ? '0' : '8px';
+    writePref(COLLAPSED_KEY, next ? '1' : '0');
+  });
+
+  sideToggle.addEventListener('click', () => {
+    const next = panel.dataset.ikbmSide === 'left' ? 'right' : 'left';
+    panel.dataset.ikbmSide = next;
+    sideToggle.title = 'Seite wechseln (aktuell: ' + (next === 'left' ? 'links' : 'rechts') + ')';
+    writePref(SIDE_KEY, next);
+  });
+
+  function reposition() {
+    const s = panel.dataset.ikbmSide;
+    const top = computeStackTop(s, seq);
+    panel.style.top = top + 'px';
+    if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
+    else { panel.style.right = '20px'; panel.style.left = ''; }
+    panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
+  }
+  reposition();
+  const repositionHandle = setInterval(reposition, 250);
+
+  closeBtn.onclick = () => { clearInterval(repositionHandle); panel.remove(); };
 
   authFetch('/api/empire').then(async (empire) => {
     const islands = empire.islands;

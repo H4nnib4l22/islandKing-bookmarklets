@@ -59,12 +59,13 @@ je mit Level). Ergebnis: Sieger, Rundenzahl (max. 6) und Vorher/
 Nachher/Verlust je Einheitentyp. Reine Rechnerei, keine API/kein
 Login-Token nötig.
 
-Beide Panels sind ein-/ausklappbar (▾/▸ auf die Überschrift klicken —
-Header bleibt immer sichtbar, darunter angedockte Panels rücken beim
-Ein-/Ausklappen automatisch nach) und haben rechts oben ein ⇄-Symbol
-zum Seitenwechsel (links/rechts andocken). Beide Einstellungen merkt
-sich der Browser (localStorage) über Reloads hinweg. Der Kampfrechner
-dockt dabei immer unter den Reisezeitenrechner, sofern beide auf
-derselben Seite stehen — verschiebt man nur den Kampfrechner auf die
-andere Seite, steht er dort allein (bzw. unter einem anderen dort
-bereits offenen Panel wie Allianz Status).
+Der Reisezeitenrechner ist ein-/ausklappbar (▾/▸ auf die Überschrift
+klicken — Header bleibt immer sichtbar, darunter angedockte Panels
+rücken beim Ein-/Ausklappen automatisch nach) und hat rechts oben ein
+⇄-Symbol zum Seitenwechsel (links/rechts andocken) — beides merkt sich
+der Browser (localStorage) über Reloads hinweg, im Bookmarklet genauso
+wie im Userscript. Nur der zusätzliche Kampfrechner (siehe oben) ist
+Tampermonkey-exklusiv; er dockt dabei immer unter den Reisezeitenrechner,
+sofern beide auf derselben Seite stehen — verschiebt man nur den
+Kampfrechner auf die andere Seite, steht er dort allein (bzw. unter
+einem anderen dort bereits offenen Panel wie Allianz Status).

@@ -87,7 +87,7 @@
     panel.dataset.ikbmSide = side;
     panel.dataset.ikbmSeq = seq;
     panel.style.cssText = 'position:fixed;width:' + width + 'px;overflow:auto;'
-      + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
+      + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
     panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'

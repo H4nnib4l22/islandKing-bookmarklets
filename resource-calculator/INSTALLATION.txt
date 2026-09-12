@@ -80,12 +80,11 @@ WENN ETWAS NICHT KLAPPT
     im URL-Feld den kompletten alten Text durch den neuen ersetzen).
 
 
-NUR IM TAMPERMONKEY-USERSCRIPT (nicht im Bookmarklet)
 Der Titel oben im Fenster ist ein-/ausklappbar (drauf klicken — bleibt
 immer sichtbar, darunter angedockte Fenster rücken automatisch nach)
 und hat rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts
 andocken). Beide Einstellungen merkt sich der Browser über Reloads
-hinweg.
+hinweg — gilt für Bookmarklet und Tampermonkey-Userscript gleichermaßen.
 
 
 WARUM DAS SO KOMPLIZIERT AUSSIEHT (kurz erklärt)
