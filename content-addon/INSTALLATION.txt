@@ -1,0 +1,38 @@
+Islandking Content Addon — Tampermonkey-Userscript
+====================================================
+
+Was das ist
+-----------
+Sammlung kleiner Komfort-Erweiterungen für islandking.ch:
+
+- Max-Stufe ausblenden: Auf der Inselseite (islandking.ch/island/<id>) und
+  der Forschungsseite (islandking.ch/research) zeigen die Listen jeden
+  Eintrag einzeln an, auch die, die längst ihre max. Stufe erreicht haben
+  und nicht mehr ausgebaut bzw. erforscht werden können. Dieses Script
+  setzt je Liste einen eigenen Ein/Aus-Schalter "Max. Stufe ausblenden" —
+  bei den Gebäuden direkt über der Gebäudeliste (neben dem "Tech-Tree"-
+  Link), bei den Forschungen direkt über der Forschungsliste. Beide
+  standardmäßig aktiv, blenden also alle bereits maximierten Einträge
+  aus, sodass nur noch die ausbau- bzw. erforschbaren übrig bleiben.
+  Jeder Schalter merkt sich seinen Zustand unabhängig vom anderen
+  (localStorage) über Reloads und Insel-/Seitenwechsel hinweg.
+
+- Kaserne-Schnellauswahl: Auf der Kaserne-Seite (islandking.ch/barracks)
+  bekommt jede Truppenzeile fünf Buttons (+5/+10/+20/+50/+100) unter dem
+  Anzahl-Feld — mehrfaches Klicken summiert sich auf den aktuellen Wert,
+  plus ein ✕-Button zum Leeren des Feldes. Truppen, die noch nicht
+  freigeschaltet sind, bekommen die Buttons automatisch, sobald sie
+  verfügbar werden.
+
+Reine DOM-Filterung der bestehenden Seiten, keine API, kein Login-Token,
+kein eigenes Panel — nur Tampermonkey, kein Bookmarklet (die Seiten sind
+eine Single-Page-App, ein Bookmarklet müsste bei jedem Insel-/Seitenwechsel
+erneut angeklickt werden).
+
+Einrichtung
+-----------
+1. Tampermonkey-Erweiterung installieren (falls noch nicht vorhanden).
+2. Tampermonkey-Dashboard → "Neues Skript" → kompletten Inhalt von
+   userscript.js einfügen, speichern.
+3. Auf islandking.ch eine beliebige Inselseite, die Forschungsseite oder
+   die Kaserne öffnen — die jeweilige Erweiterung ist sofort aktiv.
