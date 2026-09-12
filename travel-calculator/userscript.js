@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.0
+// @version      1.3.0
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Angreifer vs. Verteidiger) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -45,20 +45,27 @@
     try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
   }
 
-  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets/-
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
   // Userscripts (siehe Allianz Status/Ressourcenrechner): dockt je Seite
   // unter das unterste bereits offene Panel derselben Seite an, egal aus
-  // welchem Script/welcher Reihenfolge — reine Messung der aktuellen
-  // Bounding-Box, kein hartkodiertes Wissen ueber andere Panels.
-  // excludeEls blendet das eigene Panel (und ggf. weitere) aus der Messung
-  // aus. WICHTIG: excludeEls muss immer auch jedes Panel enthalten, das
-  // erst NACH diesem hier andocken soll (siehe combat.reposition() unten,
-  // das den Reisezeitenrechner ausschliesst) — sonst beobachten sich zwei
-  // gleichseitige Panels gegenseitig und schaukeln sich bei jedem Tick
-  // unbegrenzt nach unten hoch (A schaut auf B's letzten Stand, B auf A's
-  // gerade aktualisierten Stand, u.s.w.).
-  function computeStackTop(side, excludeEls) {
-    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]')).filter((el) => !excludeEls.includes(el));
+  // welchem Script — reine Messung der aktuellen Bounding-Box.
+  //
+  // Seq-basiert statt "alle anderen derselben Seite": jedes Panel bekommt
+  // beim Erzeugen eine fortlaufende Nummer (window.__ikbmSeq, geteilt über
+  // ALLE Scripts hinweg, da @grant none -> gleiches window). Beim Stacken
+  // zaehlen nur Panels mit KLEINERER Seq (= frueher erzeugt), nie juengere.
+  // Ohne diese Regel wuerden zwei gleichseitige Panels, die BEIDE per
+  // Intervall repositionieren, sich gegenseitig beobachten und bei jedem
+  // Tick unbegrenzt nach unten aufschaukeln (A reagiert auf B's letzten
+  // Stand, B auf A's gerade aktualisierten — daher strikt einseitig: nur
+  // rueckwaerts in der Entstehungsreihenfolge schauen, nie vorwaerts).
+  function nextPanelSeq() {
+    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
+    return window.__ikbmSeq;
+  }
+  function computeStackTop(side, selfSeq) {
+    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
+      .filter((el) => Number(el.dataset.ikbmSeq) < selfSeq);
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
@@ -66,20 +73,19 @@
 
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
-  // sie einen Seitenwechsel/Reload ueberleben. Ressourcenrechner & Co. (aus
-  // den anderen Scripts) haben KEINEN Seiten-Umschalter, respektieren aber
-  // dieselbe data-ikbm-side-Konvention — computeStackTop() docKt also auch
-  // dann korrekt an, wenn eines dieser Panels ueber diesem hier haengt.
+  // sie einen Seitenwechsel/Reload ueberleben.
   function createPanel(id, title, width, defaultSide, bodyHtml) {
     const sideKey = 'ikbm-side-' + id;
     const collapsedKey = 'ikbm-collapsed-' + id;
     const side = readPref(sideKey, defaultSide);
     const collapsed = readPref(collapsedKey, '0') === '1';
+    const seq = nextPanelSeq();
 
     const panel = document.createElement('div');
     panel.id = id;
     panel.dataset.ikbmPanel = '1';
     panel.dataset.ikbmSide = side;
+    panel.dataset.ikbmSeq = seq;
     panel.style.cssText = 'position:fixed;width:' + width + 'px;overflow:auto;'
       + 'background:#1a1428;color:#e6edf3;border:1px solid #3d2f5c;border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
@@ -113,11 +119,9 @@
       writePref(sideKey, next);
     });
 
-    // alsoExclude: weitere Panels, die bei der Stapel-Messung ignoriert
-    // werden sollen — siehe Kommentar bei computeStackTop() oben.
-    function reposition(alsoExclude) {
+    function reposition() {
       const s = panel.dataset.ikbmSide;
-      const top = computeStackTop(s, [panel].concat(alsoExclude || []));
+      const top = computeStackTop(s, seq);
       panel.style.top = top + 'px';
       if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
       else { panel.style.right = '20px'; panel.style.left = ''; }
@@ -424,16 +428,10 @@
   // Hoehen (Ein-/Ausklappen, wachsende Ergebnistabellen) vorhanden.
   // ponytail: Poll statt ResizeObserver/MutationObserver, reicht für zwei
   // simple Overlay-Panels; bei spürbarem Ruckeln auf Observer umstellen.
-  //
-  // Reihenfolge ist hier bewusst NICHT symmetrisch: der Reisezeitenrechner
-  // schliesst den Kampfrechner explizit von seiner eigenen Stapel-Messung
-  // aus (reposition([combat.panel])), der Kampfrechner schliesst nichts
-  // Zusaetzliches aus und darf daher den Reisezeitenrechner sehen. Wuerden
-  // sich beide gegenseitig beobachten, schaukelt sich ihr Top-Wert bei
-  // jedem 250ms-Tick unbegrenzt nach unten hoch (A reagiert auf B's alten
-  // Stand, B auf A's neuen — siehe computeStackTop()-Kommentar).
+  // Reihenfolge egal — computeStackTop() ist seq-basiert und daher nie
+  // zyklisch (siehe Kommentar dort).
   function repositionAll() {
-    travel.reposition([combat.panel]);
+    travel.reposition();
     combat.reposition();
   }
   repositionAll();

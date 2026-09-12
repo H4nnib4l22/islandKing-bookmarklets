@@ -23,12 +23,14 @@ kein GitHub-Token, kein externes Datenrepo.
   sowie Verteidigungsanlagen, Ergebnis inkl. Sieger, Rundenzahl und
   Verlusten je Einheitentyp.
 
-Alle Panels erkennen sich gegenseitig und stapeln sich übereinander
-(dynamisch — wächst/schrumpft ein Panel, rutschen die darunter
-angedockten automatisch mit). Reisezeitenrechner und Kampfrechner sind
-zusätzlich einklappbar (Header bleibt sichtbar) und haben ein
-⇄-Symbol zum Seitenwechsel links/rechts — beides merkt sich der
-Browser pro Panel über Reloads hinweg.
+Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
+sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und
+haben ein ⇄-Symbol zum Seitenwechsel links/rechts — beides merkt sich
+der Browser pro Panel über Reloads hinweg. Sie stapeln sich dabei immer
+überlappungsfrei nach Erzeugungsreihenfolge: dockt ein Panel um oder
+klappt es ein/aus, rücken alle NACH ihm erzeugten, gleichseitigen
+Panels automatisch nach — unabhängig davon, welches Script sie erzeugt
+hat oder auf welcher Seite sie gerade stehen.
 
 **Bookmarklet-Installation:** siehe `INSTALLATION.txt` im jeweiligen
 Unterordner, oder komplettes Bundle als `islandking-bookmarklets.zip`.

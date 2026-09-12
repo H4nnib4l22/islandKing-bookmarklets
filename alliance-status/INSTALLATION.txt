@@ -57,3 +57,10 @@ Adresse einfügen.
 Kein Sicherheitshinweis zu Tokens nötig (anders als beim eingestampften
 GitHub-Bookmarklet-Versuch) - hier steckt kein eigener Zugangsschlüssel im
 Code, nur dein ganz normaler islandking.ch-Login wird mitverwendet.
+
+Nur im Tampermonkey-Userscript (nicht im Bookmarklet): Header ist
+ein-/ausklappbar (▾/▸ auf die Überschrift klicken — bleibt immer
+sichtbar, darunter angedockte Panels rücken automatisch nach) und hat
+rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts andocken).
+Beide Einstellungen merkt sich der Browser (localStorage) über
+Reloads hinweg.

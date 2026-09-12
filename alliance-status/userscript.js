@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.0.0
-// @description  Allianz-Overlay mit Online-Status, Favoriten und Verfolgt-Liste
+// @version      1.1.0
+// @description  Allianz-Overlay mit Online-Status, Favoriten und Verfolgt-Liste — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -113,44 +113,113 @@
   // UI-Grundgeruest
   // ---------------------------------------------------------------------
 
-  // Gemeinsame Stapel-Konvention aller islandking.ch-Bookmarklets/-
-  // Userscripts (siehe auch Islandking Ressourcenrechner): Allianz Status
-  // liegt links, Ressourcenrechner rechts. Jedes Panel traegt
-  // data-ikbm-panel + data-ikbm-side und reiht sich beim Oeffnen nur unter
-  // das unterste bereits offene Panel DERSELBEN Seite ein.
-  function computeStackTop(side) {
-    const others = document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]');
+  function readPref(key, fallback) {
+    try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function writePref(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
+  }
+
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
+  // Userscripts: dockt je Seite unter das unterste bereits offene Panel
+  // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
+  // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
+  // (window.__ikbmSeq, geteilt ueber ALLE Scripts hinweg, da @grant none
+  // -> gleiches window). Beim Stacken zaehlen nur Panels mit KLEINERER
+  // Seq (= frueher erzeugt), nie juengere — sonst wuerden sich zwei
+  // gleichseitige, unabhaengig per Intervall pollende Panels gegenseitig
+  // beobachten und bei jedem Tick unbegrenzt nach unten aufschaukeln (A
+  // reagiert auf B's letzten Stand, B auf A's gerade aktualisierten).
+  function nextPanelSeq() {
+    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
+    return window.__ikbmSeq;
+  }
+  function computeStackTop(side, selfSeq) {
+    const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
+      .filter((el) => Number(el.dataset.ikbmSeq) < selfSeq);
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
+  const PANEL_ID = 'ikas-panel';
+  const SIDE_KEY = 'ikbm-side-' + PANEL_ID;
+  const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
+  const side = readPref(SIDE_KEY, 'left');
+  const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
+  const seq = nextPanelSeq();
+
   // Feste Panel-Hoehe statt max-height:82vh - eine lange Mitgliederliste
   // liess das Panel bis zu 82% des Viewports einnehmen und drueckte das
   // naechste gestapelte Panel weit nach unten aus der Sichtbarkeit
   // (Nutzer-Feedback). Nur die beiden Tab-Bodies scrollen jetzt intern
-  // (eigenes overflow:auto), Header/Tabs bleiben fix sichtbar.
+  // (eigenes overflow:auto), Header/Tabs bleiben fix sichtbar. Gilt nur
+  // im ausgeklappten Zustand — eingeklappt schrumpft das Panel auf die
+  // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
+  const TITLE = '🤝 Allianz Status';
 
   const panel = document.createElement('div');
-  panel.id = 'ikas-panel';
+  panel.id = PANEL_ID;
   panel.dataset.ikbmPanel = '1';
-  panel.dataset.ikbmSide = 'left';
-  panel.style.cssText = 'position:fixed;top:' + computeStackTop('left') + 'px;left:20px;width:340px;height:' + PANEL_HEIGHT + 'px;display:flex;flex-direction:column;'
+  panel.dataset.ikbmSide = side;
+  panel.dataset.ikbmSeq = seq;
+  panel.style.cssText = 'position:fixed;width:340px;display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex:none">'
-    + '<b>🤝 Allianz Status</b>'
-    + '<span id="ikas-close" style="cursor:pointer;opacity:.7">✕</span></div>'
+  panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE + '</b>'
+    + '<span style="display:flex;gap:10px;align-items:center">'
+    + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+    + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
+    + '</span></div>'
+    + '<div data-role="body" style="display:flex;flex-direction:column;flex:1;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;flex:none">'
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
     + '</nav>'
     + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>';
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '</div>';
   document.body.appendChild(panel);
-  document.getElementById('ikas-close').onclick = () => { clearInterval(refreshHandle); panel.remove(); };
+
+  const header = panel.querySelector('[data-role="header"]');
+  const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+  const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+  const closeBtn = panel.querySelector('[data-role="close"]');
+  const panelBody = panel.querySelector('[data-role="body"]');
+
+  function applyHeight() { panel.style.height = panelBody.hidden ? 'auto' : PANEL_HEIGHT + 'px'; }
+  applyHeight();
+
+  collapseToggle.addEventListener('click', () => {
+    const next = !panelBody.hidden;
+    panelBody.hidden = next;
+    collapseToggle.textContent = (next ? '▸ ' : '▾ ') + TITLE;
+    header.style.marginBottom = next ? '0' : '8px';
+    writePref(COLLAPSED_KEY, next ? '1' : '0');
+    applyHeight();
+  });
+
+  sideToggle.addEventListener('click', () => {
+    const next = panel.dataset.ikbmSide === 'left' ? 'right' : 'left';
+    panel.dataset.ikbmSide = next;
+    sideToggle.title = 'Seite wechseln (aktuell: ' + (next === 'left' ? 'links' : 'rechts') + ')';
+    writePref(SIDE_KEY, next);
+  });
+
+  function reposition() {
+    const s = panel.dataset.ikbmSide;
+    const top = computeStackTop(s, seq);
+    panel.style.top = top + 'px';
+    if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
+    else { panel.style.right = '20px'; panel.style.left = ''; }
+  }
+  reposition();
+  const repositionHandle = setInterval(reposition, 250);
+
+  closeBtn.onclick = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); panel.remove(); };
 
   const style = document.createElement('style');
   style.textContent = '#ikas-panel .ikas-tabbtn{flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'

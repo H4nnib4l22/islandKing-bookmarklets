@@ -80,6 +80,14 @@ WENN ETWAS NICHT KLAPPT
     im URL-Feld den kompletten alten Text durch den neuen ersetzen).
 
 
+NUR IM TAMPERMONKEY-USERSCRIPT (nicht im Bookmarklet)
+Der Titel oben im Fenster ist ein-/ausklappbar (drauf klicken — bleibt
+immer sichtbar, darunter angedockte Fenster rücken automatisch nach)
+und hat rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts
+andocken). Beide Einstellungen merkt sich der Browser über Reloads
+hinweg.
+
+
 WARUM DAS SO KOMPLIZIERT AUSSIEHT (kurz erklärt)
 islandking.ch lässt keine "normale" Webseite von aussen auf die
 Spieldaten zugreifen (Sicherheitsmassnahme der Spiel-Seite). Ein
