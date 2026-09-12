@@ -24,6 +24,12 @@ Sammlung kleiner Komfort-Erweiterungen für islandking.ch:
   freigeschaltet sind, bekommen die Buttons automatisch, sobald sie
   verfügbar werden.
 
+- Handel-Schnellauswahl: Auf der Handel-Seite (islandking.ch/market)
+  bekommen sowohl das "Biete"- als auch das "Suche"-Feld im "Neues
+  Angebot"-Formular eigene Buttons (+1000/+5000/+10000/+20000/+25000),
+  ebenfalls kumulativ bei mehrfachem Klick, plus je ein ✕-Button zum
+  Leeren.
+
 Reine DOM-Filterung der bestehenden Seiten, keine API, kein Login-Token,
 kein eigenes Panel — nur Tampermonkey, kein Bookmarklet (die Seiten sind
 eine Single-Page-App, ein Bookmarklet müsste bei jedem Insel-/Seitenwechsel
@@ -34,5 +40,6 @@ Einrichtung
 1. Tampermonkey-Erweiterung installieren (falls noch nicht vorhanden).
 2. Tampermonkey-Dashboard → "Neues Skript" → kompletten Inhalt von
    userscript.js einfügen, speichern.
-3. Auf islandking.ch eine beliebige Inselseite, die Forschungsseite oder
-   die Kaserne öffnen — die jeweilige Erweiterung ist sofort aktiv.
+3. Auf islandking.ch eine beliebige Inselseite, die Forschungsseite, die
+   Kaserne oder den Handel öffnen — die jeweilige Erweiterung ist sofort
+   aktiv.

@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.1
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung) und Schnell-Buttons (+5/+10/+20/+50/+100/leeren) in der Kaserne.
+// @version      1.3.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100) und im Handel (+1000/+5000/+10000/+20000/+25000).
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/island/*
 // @match        https://islandking.ch/research
 // @match        https://islandking.ch/barracks
+// @match        https://islandking.ch/market
 // @grant        none
 // @run-at       document-idle
 // @downloadURL  https://update.greasyfork.org/scripts/595584/Islandking%20Content%20Addon.user.js
@@ -40,7 +41,14 @@
  *    "input"-Event ausgeloest, damit Vue's v-model reagiert und Kosten/
  *    Ausbilden-Button live aktualisiert), sowie ein ✕-Button zum Leeren.
  *
- * Beide Funktionen ueber ein gemeinsames Poll-Intervall erkannt (gleiche
+ * 3) Handel-Schnellauswahl (v1.3.0): islandking.ch/market, "Neues
+ *    Angebot"-Formular hat zwei <label> ("Biete"/"Suche"), je mit
+ *    identischem input[number]+select-Markup. Gleiche Buttons-Logik wie
+ *    Kaserne (via gemeinsamer ensureQuickAddRow()-Funktion), nur mit
+ *    groesseren Schritten (+1000/+5000/+10000/+20000/+25000) passend zu
+ *    Handelsmengen statt Truppenzahlen.
+ *
+ * Alle drei Funktionen ueber ein gemeinsames Poll-Intervall erkannt (gleiche
  * Technik wie in den anderen drei Islandking-Userscripts dieses Repos),
  * da die Seiten per Vue nachladen (Ausbau/Forschungsstart/Rekrutierung/
  * Inselwechsel), ohne einen vollen Seiten-Reload auszuloesen.
@@ -107,6 +115,7 @@
       applyHiding(section.ul, readPref(cfg.lsKey, '1') === '1');
     });
     tickBarracksQuickAdd();
+    tickMarketQuickAdd();
   }
 
   // -------------------------------------------------------------------
@@ -115,24 +124,26 @@
   // bei den beiden Sektionen oben.
   // -------------------------------------------------------------------
 
-  const QUICK_ADD_STEPS = [5, 10, 20, 50, 100];
+  const BARRACKS_STEPS = [5, 10, 20, 50, 100];
 
-  function ensureQuickAddButtons(li) {
-    const input = li.querySelector('input[type="number"]');
-    if (!input) return;
-    if (li.querySelector('[data-ikba-quickadd]')) return;
-    const inputRow = input.closest('div');
+  // Gemeinsame Schnellauswahl-Buttons (+N, summieren sich, plus ✕ zum
+  // Leeren) fuer ein beliebiges <input type="number"> - Kaserne UND
+  // Handel nutzen dieselbe Funktion, nur mit unterschiedlichen Schritten
+  // und Einfuegepunkten. anchorEl ist das Element, NACH dem die
+  // Button-Zeile eingefuegt wird (afterend).
+  function ensureQuickAddRow(scopeEl, input, steps, anchorEl) {
+    if (scopeEl.querySelector('[data-ikba-quickadd]')) return;
     const wrap = document.createElement('div');
     wrap.dataset.ikbaQuickadd = '1';
     wrap.style.cssText = 'display:flex;gap:4px;margin-top:4px;justify-content:flex-end;flex-wrap:wrap';
-    QUICK_ADD_STEPS.forEach((n) => {
+    steps.forEach((n) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = '+' + n;
       btn.style.cssText = 'padding:2px 6px;font-size:11px;border-radius:4px;border:1px solid #24344a;background:#142338;color:#e6edf3;cursor:pointer';
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const max = parseInt(input.max, 10) || 999;
+        const max = parseInt(input.max, 10) || Infinity;
         const cur = parseInt(input.value, 10) || 0;
         input.value = Math.min(max, cur + n);
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -150,14 +161,38 @@
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     wrap.appendChild(clearBtn);
-    inputRow.insertAdjacentElement('afterend', wrap);
+    anchorEl.insertAdjacentElement('afterend', wrap);
   }
 
   function tickBarracksQuickAdd() {
     if (location.pathname !== '/barracks') return;
     const ul = document.querySelector('ul');
     if (!ul) return;
-    Array.from(ul.children).forEach(ensureQuickAddButtons);
+    Array.from(ul.children).forEach((li) => {
+      const input = li.querySelector('input[type="number"]');
+      if (!input) return;
+      ensureQuickAddRow(li, input, BARRACKS_STEPS, input.closest('div'));
+    });
+  }
+
+  // -------------------------------------------------------------------
+  // Handel-Schnellauswahl — islandking.ch/market, "Neues Angebot"-
+  // Formular hat zwei <label>, je eines fuer "Biete" und "Suche", beide
+  // mit identischem Markup (<input type="number"> + <select> Rohstoff in
+  // einer <div>). Erkennung ueber "hat sowohl input[number] als auch
+  // select", statt ueber Label-Text (robuster gegen Uebersetzung/Aenderung).
+  // -------------------------------------------------------------------
+
+  const MARKET_STEPS = [1000, 5000, 10000, 20000, 25000];
+
+  function tickMarketQuickAdd() {
+    if (location.pathname !== '/market') return;
+    document.querySelectorAll('label').forEach((label) => {
+      const input = label.querySelector('input[type="number"]');
+      const select = label.querySelector('select');
+      if (!input || !select) return;
+      ensureQuickAddRow(label, input, MARKET_STEPS, input.closest('div'));
+    });
   }
 
   tick();

@@ -41,7 +41,9 @@ Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   maximierte Gebäude/Forschungen ausblenden (standardmäßig beide aktiv);
   auf der Kaserne-Seite Schnell-Buttons (+5/+10/+20/+50/+100, summieren
   sich bei mehrfachem Klick) plus Leeren-Button je Truppenzeile, erscheint
-  automatisch auch für Truppen, die erst später freigeschaltet werden.
+  automatisch auch für Truppen, die erst später freigeschaltet werden;
+  auf der Handel-Seite dieselben Schnell-Buttons (+1000/+5000/+10000/
+  +20000/+25000) je für "Biete" und "Suche" im Angebotsformular.
   Kein eigenes Panel, reine DOM-Filterung.
 
 Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
