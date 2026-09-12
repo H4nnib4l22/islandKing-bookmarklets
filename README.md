@@ -26,7 +26,10 @@ kein GitHub-Token, kein externes Datenrepo.
   zwei Tabs: **PvP** (Angreifer/Verteidiger-Stückzahlen für alle Schiffs-
   und Truppentypen sowie Verteidigungsanlagen) und **Konvoi entern** (nur
   Schiffe, da Piraten-Konvois keine Landtruppen/Gebäude haben). Ergebnis
-  inkl. Sieger, Rundenzahl und Verlusten je Einheitentyp.
+  inkl. Sieger, Rundenzahl und Verlusten je Einheitentyp. Im spielinternen
+  Karten-Popup eines Piraten-Konvois erscheint zusätzlich ein **"An
+  Kampfrechner senden"**-Button, der dessen Schiffstypen+Anzahl direkt in
+  den Konvoi-entern-Tab überträgt — nur sichtbar, solange das Popup offen ist.
 
 Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
 sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und

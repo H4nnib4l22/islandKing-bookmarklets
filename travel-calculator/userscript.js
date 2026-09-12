@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.5.1
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.6.0
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -28,6 +28,10 @@
  * Beide Panels sind ein-/ausklappbar (Header bleibt sichtbar) und koennen
  * per Klick die Seite (links/rechts) wechseln; Klapp-/Seitenzustand wird
  * pro Panel in localStorage gemerkt.
+ * v1.6.0: "An Kampfrechner senden"-Button im spielinternen Karten-Popup
+ * eines Piraten-Konvois (DOM der Vue-SPA der Seite, kein eigenes Panel) —
+ * uebertraegt dessen Schiffstypen+Anzahl direkt in den Konvoi-entern-Tab.
+ * Nur sichtbar, solange das Popup selbst offen ist.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -482,6 +486,65 @@
   document.getElementById('ikcc-run').addEventListener('click', runCombat);
   document.getElementById('ikcc-convoy-run').addEventListener('click', runConvoy);
 
+  // "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois.
+  // Das Popup ist Teil der Vue-SPA der Seite (kein eigenes DOM von uns) und
+  // erscheint/verschwindet, sobald der Spieler auf der Karte einen anderen
+  // Punkt anklickt — daher kein eigener State noetig: der Button lebt nur
+  // so lange wie das Popup selbst, ueber das ohnehin laufende 250ms-Poll
+  // (repositionAll) erkannt statt per eigenem MutationObserver.
+  // Schiffsnamen-Zeilen im Popup: <li><span>Name</span><span class="font-mono">...×N</span></li>,
+  // "Name" matcht 1:1 (bis auf ß/ss) die Katalognamen in PIRATE_SHIPS_COMBAT.
+  function normalizeShipName(s) { return s.trim().replace(/ß/g, 'ss').toLowerCase(); }
+
+  function parseConvoyShips(panel) {
+    const ships = [];
+    panel.querySelectorAll('ul li').forEach((li) => {
+      const spans = li.querySelectorAll(':scope > span');
+      if (spans.length < 2) return;
+      const m = spans[1].textContent.match(/×\s*(\d+)/);
+      if (m) ships.push({ name: spans[0].textContent.trim(), count: parseInt(m[1], 10) });
+    });
+    return ships;
+  }
+
+  function sendConvoyToKampfrechner(panel) {
+    const ships = parseConvoyShips(panel);
+    if (!ships.length) return;
+    const body = combat.panel.querySelector('[data-role="body"]');
+    if (body.hidden) combat.panel.querySelector('[data-role="collapse-toggle"]').click();
+    activateCombatTab('convoy');
+    ships.forEach((s) => {
+      const target = normalizeShipName(s.name);
+      const input = Array.from(combat.panel.querySelectorAll('[data-ikcc-unit^="cdef:"]'))
+        .find((inp) => normalizeShipName(inp.dataset.ikccUnit.slice(5)) === target);
+      if (input) input.value = s.count;
+    });
+    combat.panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Die Karte ersetzt ein Popup NICHT beim naechsten Klick, sondern stapelt
+  // mehrere Info-Panels in der Sidebar (bestaetigt live: ein bereits
+  // geoeffnetes Konvoi-Panel blieb nach Klick auf eine andere Insel stehen).
+  // Daher alle aktuell vorhandenen Konvoi-Panels behandeln, nicht nur das
+  // erste — jedes bekommt seinen eigenen Button (per-Panel-Check verhindert
+  // Duplikate bei wiederholten Polls).
+  function ensureConvoySendButton() {
+    const markers = Array.from(document.querySelectorAll('p'))
+      .filter((p) => p.children.length === 0 && p.textContent.includes('Piraten-Konvoi ('));
+    markers.forEach((marker) => {
+      const panel = marker.parentElement;
+      if (!panel || panel.querySelector('[data-ikcc-send-convoy]')) return;
+      const enternBtn = Array.from(panel.querySelectorAll('button')).find((b) => b.textContent.includes('Entern'));
+      const btn = document.createElement('button');
+      btn.dataset.ikccSendConvoy = '1';
+      btn.textContent = '⚔️ An Kampfrechner senden';
+      btn.style.cssText = 'margin-top:8px;width:100%;padding:6px;border-radius:6px;border:1px solid #24344a;'
+        + 'background:#1f6feb;color:#fff;cursor:pointer;font-size:13px;font-weight:500';
+      btn.addEventListener('click', (e) => { e.preventDefault(); sendConvoyToKampfrechner(panel); });
+      (enternBtn || panel).insertAdjacentElement(enternBtn ? 'afterend' : 'beforeend', btn);
+    });
+  }
+
   const ikccTabPvp = document.getElementById('ikcc-tab-pvp');
   const ikccTabConvoy = document.getElementById('ikcc-tab-convoy');
   const ikccBodyPvp = document.getElementById('ikcc-tabbody-pvp');
@@ -507,6 +570,7 @@
   function repositionAll() {
     travel.reposition();
     combat.reposition();
+    ensureConvoySendButton();
   }
   repositionAll();
   const repositionHandle = setInterval(repositionAll, 250);
