@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.3.0
+// @version      1.3.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100) und im Handel (+1000/+5000/+10000/+20000/+25000).
 // @author       Oscar
 // @license      MIT
@@ -191,6 +191,15 @@
       const input = label.querySelector('input[type="number"]');
       const select = label.querySelector('select');
       if (!input || !select) return;
+      // Das Formular fuellt "Biete"/"Suche" mit "100" vor - ohne diesen
+      // Reset wuerde der erste Klick auf einen Schnell-Button darauf
+      // aufaddieren (z.B. +10000 -> 10100 statt 10000). Nur beim ersten
+      // Erkennen leeren (vor dem Einfuegen der Buttons), nicht bei jedem
+      // Poll-Tick, damit ein spaeter manuell eingetragener Wert bleibt.
+      if (!label.querySelector('[data-ikba-quickadd]') && input.value === '100') {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       ensureQuickAddRow(label, input, MARKET_STEPS, input.closest('div'));
     });
   }
