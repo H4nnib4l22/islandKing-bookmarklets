@@ -50,12 +50,18 @@ dann automatisch auf jeder islandking.ch-Seite.
 
 Nur im Tampermonkey-Userscript (nicht im Bookmarklet): zweites Panel
 "⚔️ Kampfrechner", dockt standardmäßig direkt UNTER dem Reisezeiten-
-rechner an. Volle Kampfformel aus dem Schattenflotte Taktischer
-Koordinator (444/445 echte Kämpfe exakt getroffen) — Angreifer/
-Verteidiger-Stückzahlen für alle Schiffs- und Truppentypen eingeben,
-Verteidiger zusätzlich mit Verteidigungsanlagen (Stadtmauer, Kanonen
-zur Stadtmauer, Leichter/Schwerer Turm, Kanonenturm, Wasserblockade
-je mit Level). Ergebnis: Sieger, Rundenzahl (max. 6) und Vorher/
+rechner an. Zwei Tabs mit derselben Kampfformel aus dem Schattenflotte
+Taktischer Koordinator (444/445 echte Kämpfe exakt getroffen):
+
+- "PvP": Angreifer/Verteidiger-Stückzahlen für alle Schiffs- und
+  Truppentypen eingeben, Verteidiger zusätzlich mit Verteidigungsanlagen
+  (Stadtmauer, Kanonen zur Stadtmauer, Leichter/Schwerer Turm,
+  Kanonenturm, Wasserblockade je mit Level).
+- "Konvoi entern": nur Schiffe, keine Truppen/Verteidigungsanlagen — ein
+  Piraten-Konvoi liegt vor Anker und hat laut Wiki nur eine Schiffsflotte
+  als Verteidigung.
+
+Beide Tabs zeigen als Ergebnis Sieger, Rundenzahl (max. 6) und Vorher/
 Nachher/Verlust je Einheitentyp. Reine Rechnerei, keine API/kein
 Login-Token nötig.
 

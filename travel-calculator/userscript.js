@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.4.1
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Angreifer vs. Verteidiger) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.5.0
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -19,8 +19,12 @@
  * Reisezeit: reine Koordinaten-Rechnung, 1:1 aus runStandaloneTravelCalc()
  * uebernommen. Kampf: 1:1 aus simulateCombatFull() im Schattenflotte
  * Taktischer Koordinator uebernommen (kontinuierlicher HP-Pool, 444/445
- * echte Kaempfe exakt getroffen). Beide brauchen keine API, keinen
- * Login-Token, keine Netzwerkanfrage — reiner Katalog + Formel.
+ * echte Kaempfe exakt getroffen), zwei Tabs im selben Panel: "PvP" (wie
+ * bisher, Truppen + Verteidigungsanlagen) und "Konvoi entern" (nur
+ * Schiffe — laut Wiki liegt ein Piraten-Konvoi "vor Anker" und hat keine
+ * Landtruppen/Gebaeude, gleiche Kampfformel, andere Katalogauswahl).
+ * Beide brauchen keine API, keinen Login-Token, keine Netzwerkanfrage —
+ * reiner Katalog + Formel.
  * Beide Panels sind ein-/ausklappbar (Header bleibt sichtbar) und koennen
  * per Klick die Seite (links/rechts) wechseln; Klapp-/Seitenzustand wird
  * pro Panel in localStorage gemerkt.
@@ -337,12 +341,34 @@
       + TROOPS_COMBAT.map((u) => unitRow(prefix, u)).join('');
   }
 
-  const combatBodyHtml = unitSection('att', 'Angreifer', '#a78bfa')
+  // Angreifer/Verteidiger-Sektion nur mit Schiffen (keine Truppen) — fuer
+  // den Konvoi-entern-Tab, der laut Wiki (Piraten-Konvoi liegt "vor Anker",
+  // reine Schiffsflotte) keine Landtruppen/Gebaeude kennt.
+  function shipOnlySection(prefix, title, color) {
+    return '<div style="font-weight:bold;color:' + color + ';margin:8px 0 4px">' + title + '</div>'
+      + SHIPS_COMBAT.map((u) => unitRow(prefix, u)).join('');
+  }
+
+  const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa')
     + unitSection('def', 'Verteidiger', '#f0d68a')
     + '<div style="font-size:11px;opacity:.6;margin:4px 0">Verteidigungsanlagen</div>'
     + BUILDINGS_COMBAT.map(buildingRow).join('')
     + '<button id="ikcc-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Kämpfen</button>'
     + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
+
+  const convoyBodyHtml = '<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Nur Schiffe — Piraten-Konvois haben keine Landtruppen/Verteidigungsanlagen.</p>'
+    + shipOnlySection('catt', 'Angreifer', '#a78bfa')
+    + shipOnlySection('cdef', 'Piraten-Konvoi', '#f0d68a')
+    + '<button id="ikcc-convoy-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
+    + '<div id="ikcc-convoy-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Schiffe eingeben und auf "Entern" klicken.</p></div>';
+
+  const ikccTabBtnStyle = 'flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px';
+  const combatBodyHtml = '<nav style="display:flex;gap:4px;margin-bottom:10px">'
+    + '<button id="ikcc-tab-pvp" style="' + ikccTabBtnStyle + '">PvP</button>'
+    + '<button id="ikcc-tab-convoy" style="' + ikccTabBtnStyle + '">Konvoi entern</button>'
+    + '</nav>'
+    + '<div id="ikcc-tabbody-pvp">' + pvpBodyHtml + '</div>'
+    + '<div id="ikcc-tabbody-convoy" style="display:none">' + convoyBodyHtml + '</div>';
 
   // Einheitliche Panel-Breite ueber alle vier Panels (Allianz Status,
   // Ressourcenrechner, Reisezeitenrechner, Kampfrechner) — passt so in
@@ -389,6 +415,14 @@
     return html;
   }
 
+  function outcome(result, defenderLabel) {
+    const attSurvives = result.attFinal.some((u) => u.after > 0);
+    const defSurvives = result.defFinal.some((u) => u.after > 0);
+    if (!defSurvives && attSurvives) return { text: '🏆 Angreifer siegt — ' + defenderLabel + ' vollständig vernichtet', color: '#4ade80' };
+    if (!attSurvives && !defSurvives) return { text: '💀 Gegenseitige Vernichtung — zählt als abgewehrter Angriff', color: '#f87171' };
+    return { text: '🛡️ ' + defenderLabel + ' hält (max. 6 Runden erreicht)', color: '#f0d68a' };
+  }
+
   function runCombat() {
     const attackerUnits = collectUnits('att', SHIPS_COMBAT).concat(collectUnits('att', TROOPS_COMBAT));
     const defenderUnits = collectUnits('def', SHIPS_COMBAT).concat(collectUnits('def', TROOPS_COMBAT)).concat(collectBuildings());
@@ -404,21 +438,58 @@
     }
 
     const result = simulateCombatFull(attackerUnits, defenderUnits);
-    const attSurvives = result.attFinal.some((u) => u.after > 0);
-    const defSurvives = result.defFinal.some((u) => u.after > 0);
-    let winnerText, winnerColor;
-    if (!defSurvives && attSurvives) { winnerText = '🏆 Angreifer siegt — Verteidiger vollständig vernichtet'; winnerColor = '#4ade80'; }
-    else if (!attSurvives && !defSurvives) { winnerText = '💀 Gegenseitige Vernichtung — zählt als abgewehrter Angriff'; winnerColor = '#f87171'; }
-    else { winnerText = '🛡️ Verteidiger hält (max. 6 Runden erreicht)'; winnerColor = '#f0d68a'; }
+    const o = outcome(result, 'Verteidiger');
 
-    let html = '<div style="font-weight:bold;color:' + winnerColor + ';margin-bottom:4px">' + winnerText + '</div>'
+    let html = '<div style="font-weight:bold;color:' + o.color + ';margin-bottom:4px">' + o.text + '</div>'
       + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
       + resultTable('Angreifer', attackerUnits, result.attFinal)
       + resultTable('Verteidiger', defenderUnits, result.defFinal);
     box.innerHTML = html;
   }
 
+  // Konvoi entern: gleiche simulateCombatFull()-Formel wie PvP, aber nur
+  // Schiffe (keine Truppen/Gebaeude) — siehe Wiki "Piraten-Konvoi entern":
+  // ein Konvoi liegt vor Anker und hat nur eine Schiffsflotte als Verteidigung.
+  function runConvoy() {
+    const attackerUnits = collectUnits('catt', SHIPS_COMBAT);
+    const defenderUnits = collectUnits('cdef', SHIPS_COMBAT);
+    const box = document.getElementById('ikcc-convoy-result');
+
+    if (attackerUnits.length === 0) {
+      box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Angreifer braucht mindestens ein Schiff.</p>';
+      return;
+    }
+    if (defenderUnits.length === 0) {
+      box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">0 Konvoi-Schiffe → nichts zu entern.</p>';
+      return;
+    }
+
+    const result = simulateCombatFull(attackerUnits, defenderUnits);
+    const o = outcome(result, 'Konvoi');
+
+    let html = '<div style="font-weight:bold;color:' + o.color + ';margin-bottom:4px">' + o.text + '</div>'
+      + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
+      + resultTable('Angreifer', attackerUnits, result.attFinal)
+      + resultTable('Piraten-Konvoi', defenderUnits, result.defFinal);
+    box.innerHTML = html;
+  }
+
   document.getElementById('ikcc-run').addEventListener('click', runCombat);
+  document.getElementById('ikcc-convoy-run').addEventListener('click', runConvoy);
+
+  const ikccTabPvp = document.getElementById('ikcc-tab-pvp');
+  const ikccTabConvoy = document.getElementById('ikcc-tab-convoy');
+  const ikccBodyPvp = document.getElementById('ikcc-tabbody-pvp');
+  const ikccBodyConvoy = document.getElementById('ikcc-tabbody-convoy');
+  function activateCombatTab(tab) {
+    ikccTabPvp.style.background = tab === 'pvp' ? '#1f6feb' : '#142338';
+    ikccTabConvoy.style.background = tab === 'convoy' ? '#1f6feb' : '#142338';
+    ikccBodyPvp.style.display = tab === 'pvp' ? 'block' : 'none';
+    ikccBodyConvoy.style.display = tab === 'convoy' ? 'block' : 'none';
+  }
+  ikccTabPvp.onclick = () => activateCombatTab('pvp');
+  ikccTabConvoy.onclick = () => activateCombatTab('convoy');
+  activateCombatTab('pvp');
 
   // Ein gemeinsames Intervall reicht: beide Panels lesen bei jedem Tick ihre
   // eigene (ggf. per Seiten-Umschalter geaenderte) data-ikbm-side neu aus,

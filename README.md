@@ -20,10 +20,11 @@ kein GitHub-Token, kein externes Datenrepo.
   berechnet. Reine Rechnerei ohne API/Token/Netzwerk. Nur im
   Tampermonkey-Userscript (nicht im Bookmarklet) zusätzlich mit einem
   eigenen **⚔️ Kampfrechner**-Panel darunter — volle Kampfformel aus dem
-  Schattenflotte Taktischer Koordinator (444/445 echte Kämpfe exakt),
-  Angreifer/Verteidiger-Stückzahlen für alle Schiffs- und Truppentypen
-  sowie Verteidigungsanlagen, Ergebnis inkl. Sieger, Rundenzahl und
-  Verlusten je Einheitentyp.
+  Schattenflotte Taktischer Koordinator (444/445 echte Kämpfe exakt), mit
+  zwei Tabs: **PvP** (Angreifer/Verteidiger-Stückzahlen für alle Schiffs-
+  und Truppentypen sowie Verteidigungsanlagen) und **Konvoi entern** (nur
+  Schiffe, da Piraten-Konvois keine Landtruppen/Gebäude haben). Ergebnis
+  inkl. Sieger, Rundenzahl und Verlusten je Einheitentyp.
 
 Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
 sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und
