@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.5.0
+// @version      1.5.1
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -246,6 +246,11 @@
     { name: 'altes Piratenschiff', attack: 10, hp: 200 },
     { name: 'Piratenschiff', attack: 120, hp: 800 },
   ];
+  // Ein Piraten-Konvoi besteht laut Wiki ausschliesslich aus Piratenschiffen
+  // (kein Spieler faehrt eigene Fregatten/Galeeren/Frachter im Konvoi) -
+  // Angreifer-Katalog bleibt SHIPS_COMBAT (alle Schiffstypen), nur die
+  // Konvoi-Verteidigerseite ist auf die 4 Piratenschiffs-Typen eingeschraenkt.
+  const PIRATE_SHIPS_COMBAT = SHIPS_COMBAT.filter((u) => u.name.includes('Piratenschiff'));
   const TROOPS_COMBAT = [
     { name: 'Soldat', attack: 3, hp: 2 },
     { name: 'Schwertkämpfer', attack: 3, hp: 5 },
@@ -344,9 +349,9 @@
   // Angreifer/Verteidiger-Sektion nur mit Schiffen (keine Truppen) — fuer
   // den Konvoi-entern-Tab, der laut Wiki (Piraten-Konvoi liegt "vor Anker",
   // reine Schiffsflotte) keine Landtruppen/Gebaeude kennt.
-  function shipOnlySection(prefix, title, color) {
+  function shipOnlySection(prefix, title, color, catalog) {
     return '<div style="font-weight:bold;color:' + color + ';margin:8px 0 4px">' + title + '</div>'
-      + SHIPS_COMBAT.map((u) => unitRow(prefix, u)).join('');
+      + catalog.map((u) => unitRow(prefix, u)).join('');
   }
 
   const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa')
@@ -357,8 +362,8 @@
     + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
 
   const convoyBodyHtml = '<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Nur Schiffe — Piraten-Konvois haben keine Landtruppen/Verteidigungsanlagen.</p>'
-    + shipOnlySection('catt', 'Angreifer', '#a78bfa')
-    + shipOnlySection('cdef', 'Piraten-Konvoi', '#f0d68a')
+    + shipOnlySection('catt', 'Angreifer', '#a78bfa', SHIPS_COMBAT)
+    + shipOnlySection('cdef', 'Piraten-Konvoi', '#f0d68a', PIRATE_SHIPS_COMBAT)
     + '<button id="ikcc-convoy-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
     + '<div id="ikcc-convoy-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Schiffe eingeben und auf "Entern" klicken.</p></div>';
 
@@ -452,7 +457,7 @@
   // ein Konvoi liegt vor Anker und hat nur eine Schiffsflotte als Verteidigung.
   function runConvoy() {
     const attackerUnits = collectUnits('catt', SHIPS_COMBAT);
-    const defenderUnits = collectUnits('cdef', SHIPS_COMBAT);
+    const defenderUnits = collectUnits('cdef', PIRATE_SHIPS_COMBAT);
     const box = document.getElementById('ikcc-convoy-result');
 
     if (attackerUnits.length === 0) {
