@@ -1,11 +1,11 @@
 # Islandking Bookmarklets
 
-Drei Browser-Add-ons für islandking.ch, wahlweise als Bookmarklet (Klick
-zum Öffnen, kein Install) oder als Tampermonkey-Userscript (öffnet
-automatisch beim Laden der Seite, kein Copy-Paste bei jeder Änderung
-mehr nötig). Alle Varianten laufen same-origin direkt in der Seite —
-Allianz Status und Ressourcenrechner mit deinem eigenen Bearer-Token,
-kein GitHub-Token, kein externes Datenrepo.
+Vier Browser-Add-ons für islandking.ch, die meisten wahlweise als
+Bookmarklet (Klick zum Öffnen, kein Install) oder als Tampermonkey-
+Userscript (öffnet automatisch beim Laden der Seite, kein Copy-Paste bei
+jeder Änderung mehr nötig). Alle Varianten laufen same-origin direkt in
+der Seite — Allianz Status und Ressourcenrechner mit deinem eigenen
+Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
 
 - **Allianz Status** (`alliance-status/`) — Overlay-Panel mit Online-Status
   und "zuletzt online" für alle Allianzmitglieder, Favoriten, eine eigene
@@ -30,6 +30,11 @@ kein GitHub-Token, kein externes Datenrepo.
   Karten-Popup eines Piraten-Konvois erscheint zusätzlich ein **"An
   Kampfrechner senden"**-Button, der dessen Schiffstypen+Anzahl direkt in
   den Konvoi-entern-Tab überträgt — nur sichtbar, solange das Popup offen ist.
+- **Max-Stufe ausblenden** (`hide-maxed-buildings/`) — nur Tampermonkey
+  (kein Bookmarklet, da die Inselseite eine Single-Page-App ist). Setzt
+  einen Ein/Aus-Schalter über die Gebäudeliste der Inselseite, der bereits
+  maximierte Gebäude ausblendet, standardmäßig aktiv. Kein eigenes Panel,
+  reine DOM-Filterung.
 
 Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
 sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und
