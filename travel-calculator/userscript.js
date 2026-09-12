@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.3.0
+// @version      1.4.0
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Angreifer vs. Verteidiger) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -325,31 +325,29 @@
       + '</div>';
   }
 
-  const combatBodyHtml = '<div style="display:flex;gap:14px;margin-bottom:10px">'
-    + '<div style="flex:1;min-width:0">'
-    + '<div style="font-weight:bold;color:#a78bfa;margin-bottom:4px">Angreifer</div>'
-    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
-    + SHIPS_COMBAT.map((u) => unitRow('att', u)).join('')
-    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Truppen</div>'
-    + TROOPS_COMBAT.map((u) => unitRow('att', u)).join('')
-    + '</div>'
-    + '<div style="flex:1;min-width:0">'
-    + '<div style="font-weight:bold;color:#f0d68a;margin-bottom:4px">Verteidiger</div>'
-    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
-    + SHIPS_COMBAT.map((u) => unitRow('def', u)).join('')
-    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Truppen</div>'
-    + TROOPS_COMBAT.map((u) => unitRow('def', u)).join('')
+  // Angreifer/Verteidiger UNTEREINANDER statt nebeneinander — bei der
+  // einheitlichen Panel-Breite (siehe unten) wuerden zwei Spalten mit
+  // langen Einheitennamen ("mächtiges Piratenschiff") zu eng, gestapelt
+  // nutzt jede Zeile die volle Breite.
+  function unitSection(prefix, title, color) {
+    return '<div style="font-weight:bold;color:' + color + ';margin:8px 0 4px">' + title + '</div>'
+      + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
+      + SHIPS_COMBAT.map((u) => unitRow(prefix, u)).join('')
+      + '<div style="font-size:11px;opacity:.6;margin:4px 0">Truppen</div>'
+      + TROOPS_COMBAT.map((u) => unitRow(prefix, u)).join('');
+  }
+
+  const combatBodyHtml = unitSection('att', 'Angreifer', '#a78bfa')
+    + unitSection('def', 'Verteidiger', '#f0d68a')
     + '<div style="font-size:11px;opacity:.6;margin:4px 0">Verteidigungsanlagen</div>'
     + BUILDINGS_COMBAT.map(buildingRow).join('')
-    + '</div>'
-    + '</div>'
-    + '<button id="ikcc-run" style="width:100%;padding:6px;margin-bottom:10px;cursor:pointer">Kämpfen</button>'
+    + '<button id="ikcc-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Kämpfen</button>'
     + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
 
-  // Standardmaessig dieselbe Seite wie der Reisezeitenrechner ('right') —
-  // wird als zweites Panel erzeugt, dockt also per computeStackTop() direkt
-  // darunter an, solange beide auf derselben Seite stehen.
-  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 460, 'right', combatBodyHtml);
+  // Einheitliche Panel-Breite ueber alle vier Panels (Allianz Status,
+  // Ressourcenrechner, Reisezeitenrechner, Kampfrechner) — passt so in
+  // den verfuegbaren Freiraum, ohne dass eines breiter herausragt.
+  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 380, 'right', combatBodyHtml);
 
   function collectUnits(prefix, catalog) {
     const units = [];

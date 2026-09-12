@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.0
+// @version      1.1.1
 // @description  Allianz-Overlay mit Online-Status, Favoriten und Verfolgt-Liste — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -165,7 +165,7 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:340px;display:flex;flex-direction:column;'
+  panel.style.cssText = 'position:fixed;width:380px;display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
