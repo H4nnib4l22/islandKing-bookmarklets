@@ -8,8 +8,10 @@ Allianz Status und Ressourcenrechner mit deinem eigenen Bearer-Token,
 kein GitHub-Token, kein externes Datenrepo.
 
 - **Allianz Status** (`alliance-status/`) — Overlay-Panel mit Online-Status
-  und "zuletzt online" für alle Allianzmitglieder, Favoriten, und eine
-  eigene Verfolgt-Liste beliebiger Spielernamen samt Punkten/Rang.
+  und "zuletzt online" für alle Allianzmitglieder, Favoriten, eine eigene
+  Verfolgt-Liste beliebiger Spielernamen samt Punkten/Rang, sowie ein
+  **Angriffe**-Tab mit allen laufenden Flottenbewegungen der Allianz
+  (eingehend/ausgehend, Ziel, Koordinaten, Ankunfts-Countdown).
 - **Ressourcenrechner** (`resource-calculator/`) — Overlay-Panel, das für
   Gebäude/Forschung/Schiff die volle Voraussetzungskette samt Kosten,
   Bauzeit und Ansparzeit aus Lager + Produktion berechnet.
