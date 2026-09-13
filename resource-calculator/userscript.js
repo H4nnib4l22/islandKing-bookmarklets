@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.1
+// @version      1.2.0
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -24,7 +24,7 @@
 (function () {
   const VERSION = 'v6-2026-09-12';
   const existing = document.getElementById('ikrc-panel');
-  if (existing) { existing.remove(); return; }
+  if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
   const token = localStorage.getItem('access_token');
   // Kein alert() hier (anders als beim Bookmarklet): das Script laeuft
@@ -147,7 +147,15 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  closeBtn.onclick = () => { clearInterval(repositionHandle); panel.remove(); };
+  // Alle 10 Min. Seite neu laden, damit ein bald ablaufender Token (~15 Min.
+  // Lebensdauer laut Notifier-Extension) proaktiv erneuert wird statt erst
+  // nach einem sichtbaren 401 (siehe const token oben - wird nur einmal
+  // beim Oeffnen gelesen, nie aufgefrischt). Script laeuft bei jedem
+  // Seitenladen automatisch erneut, Panel oeffnet sich danach von selbst.
+  const reloadHandle = setInterval(() => location.reload(), 10 * 60 * 1000);
+  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); clearInterval(reloadHandle); };
+
+  closeBtn.onclick = () => { panel.__ikrcCleanup(); panel.remove(); };
 
   authFetch('/api/empire').then(async (empire) => {
     const islands = empire.islands;

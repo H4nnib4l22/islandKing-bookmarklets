@@ -11,7 +11,7 @@
 (function () {
   const VERSION = 'v6-2026-09-12';
   const existing = document.getElementById('ikrc-panel');
-  if (existing) { existing.remove(); return; }
+  if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
   const token = localStorage.getItem('access_token');
   if (!token) { alert('Kein access_token gefunden — bist du auf islandking.ch eingeloggt?'); return; }
@@ -130,7 +130,15 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  closeBtn.onclick = () => { clearInterval(repositionHandle); panel.remove(); };
+  // Alle 10 Min. Seite neu laden, damit ein bald ablaufender Token (~15 Min.
+  // Lebensdauer laut Notifier-Extension) proaktiv erneuert wird statt erst
+  // nach einem sichtbaren 401 (siehe const token oben - wird nur einmal
+  // beim Oeffnen gelesen, nie aufgefrischt). Schliesst das Panel (Bookmarklet
+  // injiziert sich nicht automatisch neu) - bewusst in Kauf genommen.
+  const reloadHandle = setInterval(() => location.reload(), 10 * 60 * 1000);
+  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); clearInterval(reloadHandle); };
+
+  closeBtn.onclick = () => { panel.__ikrcCleanup(); panel.remove(); };
 
   authFetch('/api/empire').then(async (empire) => {
     const islands = empire.islands;
