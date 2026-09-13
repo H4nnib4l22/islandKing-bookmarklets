@@ -12,7 +12,7 @@
  * sich unter andere offene islandking.ch-Panels ein.
  */
 (function () {
-  const VERSION = 'v1.0.1';
+  const VERSION = 'v1.1.0';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -124,14 +124,19 @@
     ].join('\n');
   }
 
-  async function findReport(username) {
+  // Ein Ziel kann mehrere Inseln haben, jede mit eigenem Spionagebericht -
+  // sammelt daher ALLE Treffer (aktiv + archiviert), statt beim ersten
+  // abzubrechen, damit der Aufrufer bei mehreren Treffern eine Auswahl
+  // anzeigen kann (Nutzerwunsch 2026-09-13).
+  async function findReports(username) {
     const needle = username.toLowerCase();
+    let matches = [];
     for (const archived of [0, 1]) {
       const data = await apiFetch('/api/spy-reports?archived=' + archived);
-      const match = (data?.reports || []).find((r) => r.target.toLowerCase() === needle);
-      if (match) return match;
+      const found = (data?.reports || []).filter((r) => r.target.toLowerCase() === needle);
+      matches = matches.concat(found);
     }
-    return null;
+    return matches;
   }
 
   async function fetchFleetText() {
@@ -179,6 +184,7 @@
     + '<input type="text" id="iksr-username" placeholder="Benutzername…">'
     + '<button class="primary" id="iksr-run-spy">Bericht auslesen</button>'
     + '</div>'
+    + '<div id="iksr-spy-choices" style="display:none;margin-bottom:8px"></div>'
     + '<div id="iksr-fleet-pane" style="display:none">'
     + '<button class="primary" id="iksr-run-fleet">Flotte auslesen</button>'
     + '</div>'
@@ -232,7 +238,10 @@
     + '#iksr-panel textarea{width:100%;box-sizing:border-box;height:170px;background:#142338;border:1px solid #24344a;color:#e6edf3;border-radius:6px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:8px}'
     + '#iksr-panel button.primary{width:100%;box-sizing:border-box;padding:7px;border:none;border-radius:6px;background:#1f6feb;color:#fff;font-size:12px;cursor:pointer;margin-bottom:8px}'
     + '#iksr-panel button.primary:disabled{opacity:.6;cursor:default}'
-    + '#iksr-panel button.secondary{width:100%;box-sizing:border-box;padding:7px;border:1px solid #24344a;border-radius:6px;background:#24344a;color:#e6edf3;font-size:12px;cursor:pointer}';
+    + '#iksr-panel button.secondary{width:100%;box-sizing:border-box;padding:7px;border:1px solid #24344a;border-radius:6px;background:#24344a;color:#e6edf3;font-size:12px;cursor:pointer}'
+    + '#iksr-panel #iksr-spy-choices{display:flex;flex-direction:column;gap:4px}'
+    + '#iksr-panel button.choice{width:100%;box-sizing:border-box;text-align:left;padding:6px 8px;border:1px solid #24344a;border-radius:6px;background:#142338;color:#e6edf3;font-size:12px;cursor:pointer}'
+    + '#iksr-panel button.choice:hover{background:#1c2f45}';
   panel.appendChild(style);
 
   // ---------------------------------------------------------------------
@@ -245,6 +254,7 @@
   const fleetPane = document.getElementById('iksr-fleet-pane');
   const usernameInput = document.getElementById('iksr-username');
   const runSpyBtn = document.getElementById('iksr-run-spy');
+  const spyChoicesEl = document.getElementById('iksr-spy-choices');
   const runFleetBtn = document.getElementById('iksr-run-fleet');
   const statusEl = document.getElementById('iksr-status');
   const resultEl = document.getElementById('iksr-result');
@@ -253,6 +263,34 @@
   function setStatus(text, kind) {
     statusEl.textContent = text;
     statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function clearSpyChoices() {
+    spyChoicesEl.innerHTML = '';
+    spyChoicesEl.style.display = 'none';
+  }
+
+  // Mehrere Treffer (z.B. mehrere Inseln desselben Spielers) -> Auswahl-
+  // Liste statt blind den ersten zu nehmen. Neueste zuerst, da der
+  // aktuellste Bericht meist der relevanteste ist.
+  function renderSpyChoices(reports) {
+    spyChoicesEl.innerHTML = '';
+    spyChoicesEl.style.display = '';
+    reports
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .forEach((r) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice';
+        const ts = new Date(r.createdAt).toLocaleString('de-CH');
+        btn.textContent = `${r.islandName} (${r.coordinates.x} | ${r.coordinates.y}) — ${ts}`;
+        btn.onclick = () => {
+          resultEl.value = formatReport(r);
+          setStatus('Bericht ausgewählt.', 'success');
+          clearSpyChoices();
+        };
+        spyChoicesEl.appendChild(btn);
+      });
   }
 
   tabSpyBtn.onclick = () => {
@@ -266,6 +304,7 @@
     tabSpyBtn.classList.remove('active');
     fleetPane.style.display = '';
     spyPane.style.display = 'none';
+    clearSpyChoices();
   };
 
   usernameInput.addEventListener('keydown', (e) => {
@@ -276,15 +315,19 @@
     const username = usernameInput.value.trim();
     setStatus('');
     resultEl.value = '';
+    clearSpyChoices();
     if (!username) { setStatus('Bitte einen Benutzernamen eingeben.', 'error'); return; }
     runSpyBtn.disabled = true;
     try {
-      const report = await findReport(username);
-      if (!report) {
+      const reports = await findReports(username);
+      if (!reports.length) {
         setStatus(`Kein Spionagebericht für "${username}" gefunden.`, 'error');
-      } else {
-        resultEl.value = formatReport(report);
+      } else if (reports.length === 1) {
+        resultEl.value = formatReport(reports[0]);
         setStatus('Bericht gefunden.', 'success');
+      } else {
+        setStatus(`${reports.length} Berichte gefunden — welchen willst du?`, 'success');
+        renderSpyChoices(reports);
       }
     } catch (err) {
       setStatus(describeError(err), 'error');
@@ -296,6 +339,7 @@
   runFleetBtn.onclick = async () => {
     setStatus('');
     resultEl.value = '';
+    clearSpyChoices();
     runFleetBtn.disabled = true;
     try {
       resultEl.value = await fetchFleetText();
