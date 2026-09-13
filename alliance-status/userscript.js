@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.2
+// @version      1.6.3
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -177,7 +177,7 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.2';
+  const VERSION = 'v1.6.3';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -257,6 +257,7 @@
     + '#ikas-panel .box{display:flex;align-items:center;gap:8px;background:#142338;border:1px solid #24344a;border-radius:6px;padding:4px 8px;margin-bottom:4px}'
     + '#ikas-panel .box.favorite{background:#1c2410;border-color:#4a4620}'
     + '#ikas-panel .box.incoming{background:#3a1414;border-color:#7a2a2a}'
+    + '#ikas-panel .box.outgoing{background:#123a1e;border-color:#2a7a44}'
     + '#ikas-panel .box .info{flex:1;min-width:0}'
     + '#ikas-panel .box .name{font-weight:600;font-size:12px}'
     + '#ikas-panel .box .meta{font-size:11px;color:#a9c6f0}'
@@ -484,7 +485,7 @@
 
   function renderFleetBox(f, incoming) {
     const box = document.createElement('div');
-    box.className = incoming ? 'box incoming' : 'box';
+    box.className = incoming ? 'box incoming' : 'box outgoing';
     const info = document.createElement('div');
     info.className = 'info';
     const coords = (f.x != null && f.y != null) ? ` (${f.x}|${f.y})` : '';
