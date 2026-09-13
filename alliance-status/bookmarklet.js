@@ -69,6 +69,23 @@
     try { return localStorage.getItem('access_token'); } catch { return null; }
   }
 
+  // Reaktiver Reload bei 401 statt nur periodisch (siehe reloadHandle weiter
+  // unten): der 5-Min-Timer kann den tatsaechlichen Ablaufzeitpunkt des
+  // Tokens verpassen (Nutzer-Report 2026-09-13: 401 kam trotz 5-Min-Reload
+  // wieder). Cooldown per localStorage (nicht nur in-memory, da ein Reload
+  // den Skript-Zustand ohnehin verwirft) verhindert eine Reload-Schleife,
+  // falls die API dauerhaft 401 liefert (z.B. echter Logout statt nur
+  // abgelaufener Token - ein Reload wuerde daran nichts aendern, soll dann
+  // aber auch nicht im Sekundentakt weiterversuchen).
+  const LS_LAST_AUTH_RELOAD = 'ikas_lastAuthReload';
+  const AUTH_RELOAD_COOLDOWN_MS = 30000;
+  function reloadOn401() {
+    const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
+    if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) return;
+    localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
+    location.reload();
+  }
+
   async function apiFetch(path) {
     const token = getAuthToken();
     const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
@@ -81,7 +98,10 @@
     }
     let body = null;
     try { body = await res.json(); } catch { /* leere/ungueltige Antwort */ }
-    if (!res.ok) throw new ApiError(res.status, body?.error || ('HTTP ' + res.status));
+    if (!res.ok) {
+      if (res.status === 401) reloadOn401();
+      throw new ApiError(res.status, body?.error || ('HTTP ' + res.status));
+    }
     return body;
   }
 
@@ -164,7 +184,7 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.3';
+  const VERSION = 'v1.6.4';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
