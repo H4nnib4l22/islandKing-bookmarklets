@@ -79,7 +79,8 @@
   const side = readPref(SIDE_KEY, 'right');
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   const seq = nextPanelSeq();
-  const TITLE = '🧭 Reisezeitenrechner';
+  const VERSION = 'v1.6.0';
+  const TITLE = '🧭 Reisezeitenrechner <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
   panel.id = PANEL_ID;
@@ -121,7 +122,7 @@
   collapseToggle.addEventListener('click', () => {
     const next = !body.hidden;
     body.hidden = next;
-    collapseToggle.textContent = (next ? '▸ ' : '▾ ') + TITLE;
+    collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
   });

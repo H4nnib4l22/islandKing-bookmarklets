@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.0
+// @version      1.6.1
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -82,7 +82,11 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
+  const VERSION = 'v1.6.1';
+  const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
+
   function createPanel(id, title, width, defaultSide, bodyHtml) {
+    title = title + VERSION_HTML;
     const sideKey = 'ikbm-side-' + id;
     const collapsedKey = 'ikbm-collapsed-' + id;
     const side = readPref(sideKey, defaultSide);
@@ -115,7 +119,7 @@
     collapseToggle.addEventListener('click', () => {
       const next = !body.hidden;
       body.hidden = next;
-      collapseToggle.textContent = (next ? '▸ ' : '▾ ') + title;
+      collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + title;
       header.style.marginBottom = next ? '0' : '8px';
       writePref(collapsedKey, next ? '1' : '0');
     });

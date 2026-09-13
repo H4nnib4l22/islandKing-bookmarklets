@@ -22,7 +22,7 @@
  * Produktion/h dazu.
  */
 (function () {
-  const VERSION = 'v6-2026-09-12';
+  const VERSION = 'v1.2.0';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 

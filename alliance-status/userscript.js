@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.1
+// @version      1.6.2
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -177,7 +177,8 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const TITLE = '🤝 Allianz Status';
+  const VERSION = 'v1.6.2';
+  const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
   panel.id = PANEL_ID;
@@ -219,7 +220,7 @@
   collapseToggle.addEventListener('click', () => {
     const next = !panelBody.hidden;
     panelBody.hidden = next;
-    collapseToggle.textContent = (next ? '▸ ' : '▾ ') + TITLE;
+    collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
     applyHeight();
