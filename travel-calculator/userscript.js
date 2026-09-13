@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.2
+// @version      1.6.3
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -82,7 +82,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.2';
+  const VERSION = 'v1.6.3';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
@@ -254,6 +254,18 @@
     { name: 'altes Piratenschiff', attack: 10, hp: 200 },
     { name: 'Piratenschiff', attack: 120, hp: 800 },
   ];
+  // Baukosten nur der vom Spieler baubaren Schiffe (Piratenschiffe haben
+  // kein unitCost, koennen nicht gebaut/repariert werden) - live verifiziert
+  // ueber /api/islands/:id/overview -> ships[].unitCost (2026-09-13).
+  const SHIP_BUILD_COST = {
+    'Schlachtschiff': { wood: 200000, stone: 80000, iron: 80000 },
+    'schwere Galeere': { wood: 40000, stone: 500, iron: 15600 },
+    'leichte Galeere': { wood: 9000, stone: 300, iron: 5000 },
+    'Fregatte': { wood: 120000, stone: 30000, iron: 50000 },
+    'kleines Frachtschiff': { wood: 6500, stone: 150, iron: 4100 },
+    'grosses Frachtschiff': { wood: 24000, stone: 500, iron: 12000 },
+    'Kolonisationsschiff': { wood: 30000, stone: 10000, iron: 15000 },
+  };
   // Ein Piraten-Konvoi besteht laut Wiki ausschliesslich aus Piratenschiffen
   // (kein Spieler faehrt eigene Fregatten/Galeeren/Frachter im Konvoi) -
   // Angreifer-Katalog bleibt SHIPS_COMBAT (alle Schiffstypen), nur die
@@ -416,29 +428,46 @@
   // Bei Ueberleben mit angeschlagenem HP-Pool geht die letzte (angebrochene)
   // Einheit nicht kampfbereit, sondern beschaedigt ins Reparaturdock zurueck
   // (Nutzer-Beobachtung 2026-09-13: 1 von 2 Schlachtschiffen kam mit 76%
-  // Restleben ins Dock). curHpPool minus die vollen Einheiten davor = Rest-HP
-  // der angebrochenen letzten Einheit.
-  function dockPercent(f) {
+  // SCHADEN ins Dock). curHpPool minus die vollen Einheiten davor = Rest-HP
+  // der angebrochenen letzten Einheit, 100% minus deren Anteil = Schaden%.
+  function dockDamagePercent(f) {
     if (!f || f.after <= 0) return null;
     const rest = f.curHpPool - (f.after - 1) * f.hp;
-    const pct = Math.round((rest / f.hp) * 100);
-    return pct < 100 ? pct : null;
+    const restPct = Math.round((rest / f.hp) * 100);
+    return restPct < 100 ? 100 - restPct : null;
   }
 
+  // Reparaturkosten = Schaden% der angebrochenen Einheit * ihre Baukosten
+  // (Nutzerangabe 2026-09-13: bei 76% Schaden fallen exakt 76% der
+  // Baukosten als Reparaturkosten an). Nur fuer Schiffstypen mit bekanntem
+  // SHIP_BUILD_COST - Truppen/Gebaeude/Piratenschiffe haben keins.
   function resultTable(title, before, final) {
     let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + '</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
-      + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock</td></tr>';
+      + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
+    const repairTotal = { wood: 0, stone: 0, iron: 0 };
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
-      const pct = dockPercent(f);
+      const dmgPct = dockDamagePercent(f);
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
         + '<td style="opacity:.75">' + (u.count - after) + '</td>'
-        + '<td style="opacity:.75">' + (pct !== null ? '1x ' + pct + '%' : '—') + '</td></tr>';
+        + '<td style="opacity:.75">' + (dmgPct !== null ? '1x ' + dmgPct + '%' : '—') + '</td></tr>';
+      const buildCost = SHIP_BUILD_COST[u.name];
+      if (dmgPct !== null && buildCost) {
+        repairTotal.wood += buildCost.wood * dmgPct / 100;
+        repairTotal.stone += buildCost.stone * dmgPct / 100;
+        repairTotal.iron += buildCost.iron * dmgPct / 100;
+      }
     });
     html += '</table>';
+    if (repairTotal.wood || repairTotal.stone || repairTotal.iron) {
+      html += '<div style="font-size:11px;opacity:.75;margin-top:4px">Reparaturkosten: '
+        + '🪵 ' + Math.round(repairTotal.wood).toLocaleString() + ' · '
+        + '🪨 ' + Math.round(repairTotal.stone).toLocaleString() + ' · '
+        + '⚙️ ' + Math.round(repairTotal.iron).toLocaleString() + '</div>';
+    }
     return html;
   }
 
