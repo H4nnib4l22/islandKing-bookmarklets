@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.3.1
+// @version      1.3.2
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100) und im Handel (+1000/+5000/+10000/+20000/+25000).
 // @author       Oscar
 // @license      MIT
@@ -162,6 +162,13 @@
     });
     wrap.appendChild(clearBtn);
     anchorEl.insertAdjacentElement('afterend', wrap);
+    // anchorEl (Eingabe+Dropdown) auf volle Breite ziehen, damit es buendig
+    // mit der Button-Zeile (die als Block-Element die volle Breite nutzt)
+    // abschliesst - sonst bleibt anchorEl bei seiner intrinsischen Breite.
+    anchorEl.style.width = '100%';
+    anchorEl.style.boxSizing = 'border-box';
+    input.style.flex = '1';
+    input.style.minWidth = '0';
   }
 
   function tickBarracksQuickAdd() {
