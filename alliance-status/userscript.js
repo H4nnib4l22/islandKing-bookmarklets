@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.5.0
+// @version      1.6.1
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -62,7 +62,7 @@
   const LS_ALL_COLLAPSED = 'ikas_allMembersCollapsed';
   const LS_TRACKED_NAMES = 'ikas_trackedNames';
   const LS_TRACKED_LAST_SEEN = 'ikas_trackedLastSeenByName';
-  const REFRESH_MS = 60000;
+  const REFRESH_MS = 10000;
 
   function loadJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
@@ -255,6 +255,7 @@
     + '#ikas-panel .group-label.collapsible{cursor:pointer;user-select:none}'
     + '#ikas-panel .box{display:flex;align-items:center;gap:8px;background:#142338;border:1px solid #24344a;border-radius:6px;padding:4px 8px;margin-bottom:4px}'
     + '#ikas-panel .box.favorite{background:#1c2410;border-color:#4a4620}'
+    + '#ikas-panel .box.incoming{background:#3a1414;border-color:#7a2a2a}'
     + '#ikas-panel .box .info{flex:1;min-width:0}'
     + '#ikas-panel .box .name{font-weight:600;font-size:12px}'
     + '#ikas-panel .box .meta{font-size:11px;color:#a9c6f0}'
@@ -480,9 +481,9 @@
     return `${sec}s`;
   }
 
-  function renderFleetBox(f) {
+  function renderFleetBox(f, incoming) {
     const box = document.createElement('div');
-    box.className = 'box';
+    box.className = incoming ? 'box incoming' : 'box';
     const info = document.createElement('div');
     info.className = 'info';
     const coords = (f.x != null && f.y != null) ? ` (${f.x}|${f.y})` : '';
@@ -496,12 +497,20 @@
     return box;
   }
 
-  // Erkennung neuer Flotten seit dem letzten Render — rein in-memory (kein
-  // localStorage), da der Notification-Punkt nur waehrend der aktuellen
-  // Panel-Sitzung Sinn ergibt. knownFleetKeys bleibt bis zum ersten
-  // erfolgreichen Fetch leer -> beim initialen Laden erscheint kein Punkt
-  // fuer bereits laufende Angriffe, nur fuer WIRKLICH neu hinzugekommene.
-  let knownFleetKeys = null;
+  // Erkennung neuer Flotten seit dem letzten Render — in localStorage
+  // persistiert (LS_KNOWN_FLEETS), NICHT mehr rein in-memory: der
+  // 10-Minuten-Auto-Reload (siehe unten) wuerde sonst bei jedem Reload die
+  // Baseline auf null zuruecksetzen und einen Angriff, der kurz nach einem
+  // Reload eintrifft, beim ersten Fetch stillschweigend als "schon bekannt"
+  // einstufen statt den Punkt zu zeigen (Bug gefunden 2026-09-13, Nutzer-
+  // Report "Angriff kam rein, kein Punkt am Tab"). null bleibt weiterhin
+  // moeglich (erster Start ueberhaupt, localStorage leer) -> dann wie
+  // bisher kein Punkt fuer bereits laufende Angriffe beim allerersten Fetch.
+  const LS_KNOWN_FLEETS = 'ikas_knownFleetKeys';
+  let knownFleetKeys = (() => {
+    const arr = loadJson(LS_KNOWN_FLEETS, null);
+    return Array.isArray(arr) ? new Set(arr) : null;
+  })();
   function fleetKey(f) { return [f.player, f.x, f.y, f.arriveAt].join('|'); }
 
   async function renderAttacks() {
@@ -522,6 +531,7 @@
     const currentKeys = new Set([...incoming, ...outgoing].map(fleetKey));
     const hasNew = knownFleetKeys && [...currentKeys].some((k) => !knownFleetKeys.has(k));
     knownFleetKeys = currentKeys;
+    saveJson(LS_KNOWN_FLEETS, [...currentKeys]);
     if (hasNew && activeTabName !== 'attacks') document.getElementById('ikas-attacks-dot').hidden = false;
 
     body.innerHTML = '';
@@ -543,7 +553,7 @@
       label.className = 'group-label';
       label.textContent = '🛡️ Eingehend';
       body.appendChild(label);
-      for (const f of incoming) body.appendChild(renderFleetBox(f));
+      for (const f of incoming) body.appendChild(renderFleetBox(f, true));
     }
     if (outgoing.length) {
       const label = document.createElement('div');
@@ -641,7 +651,7 @@
   // wird statt erst nach einem sichtbaren 401 zu reagieren. Anders als beim
   // Bookmarklet oeffnet sich das Panel danach automatisch wieder (Script
   // laeuft bei jedem Seitenladen erneut).
-  const reloadHandle = setInterval(() => location.reload(), 10 * 60 * 1000);
+  const reloadHandle = setInterval(() => location.reload(), 5 * 60 * 1000);
   const prevCleanup = panel.__ikasCleanup;
   panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); };
 })();
