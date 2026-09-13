@@ -71,15 +71,21 @@
 
   // Reaktiver Reload bei 401 statt nur periodisch (siehe reloadHandle weiter
   // unten): der 5-Min-Timer kann den tatsaechlichen Ablaufzeitpunkt des
-  // Tokens verpassen (Nutzer-Report 2026-09-13: 401 kam trotz 5-Min-Reload
-  // wieder). Cooldown per localStorage (nicht nur in-memory, da ein Reload
-  // den Skript-Zustand ohnehin verwirft) verhindert eine Reload-Schleife,
-  // falls die API dauerhaft 401 liefert (z.B. echter Logout statt nur
-  // abgelaufener Token - ein Reload wuerde daran nichts aendern, soll dann
-  // aber auch nicht im Sekundentakt weiterversuchen).
+  // Tokens verpassen. Erst nach mehreren FOLGE-401ern reloaden (1:1 das
+  // schon geloeste Muster aus content.js der eigenstaendigen Alliance-
+  // Status-Extension, Nutzer-Feedback 2026-09-08): direkt nach einem Reload
+  // hat die Seite den Token oft noch nicht neu getauscht, ein einzelnes
+  // 401 ist dann nur transient - sofortiges Reloaden darauf loeste eine
+  // Reload-Schleife aus (Nutzer-Report 2026-09-13). Cooldown weiterhin per
+  // localStorage (nicht nur in-memory, da ein Reload den Skript-Zustand
+  // ohnehin verwirft).
   const LS_LAST_AUTH_RELOAD = 'ikas_lastAuthReload';
-  const AUTH_RELOAD_COOLDOWN_MS = 30000;
+  const AUTH_RELOAD_COOLDOWN_MS = 60000;
+  const AUTO_RELOAD_AFTER_401 = 3;
+  let consecutive401 = 0;
   function reloadOn401() {
+    consecutive401 += 1;
+    if (consecutive401 < AUTO_RELOAD_AFTER_401) return;
     const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
     if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) return;
     localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
@@ -100,8 +106,10 @@
     try { body = await res.json(); } catch { /* leere/ungueltige Antwort */ }
     if (!res.ok) {
       if (res.status === 401) reloadOn401();
+      else consecutive401 = 0;
       throw new ApiError(res.status, body?.error || ('HTTP ' + res.status));
     }
+    consecutive401 = 0;
     return body;
   }
 
@@ -184,7 +192,7 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.4';
+  const VERSION = 'v1.6.5';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
