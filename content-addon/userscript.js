@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.4.0
+// @version      1.4.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000) und im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen).
 // @author       Oscar
 // @license      MIT
@@ -299,8 +299,11 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.dataset.ikbaHarborfill = '1';
-      btn.textContent = 'Füllen';
-      btn.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:11px;border-radius:4px;border:1px solid #24344a;background:#142338;color:#e6edf3;cursor:pointer';
+      btn.textContent = 'Max.';
+      // Gleiche Tailwind-Klassen wie die nativen "Max"-Buttons der Seite
+      // (Schiffszeilen oben), statt eigenem inline-Stil - damit Schriftart/
+      // Look identisch sind.
+      btn.className = 'ml-1.5 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50';
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         fillHarborResource(card, entries, entry);
