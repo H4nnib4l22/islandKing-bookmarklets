@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.0.0
+// @version      1.0.1
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -34,7 +34,7 @@
  *   Muster wie alle anderen Scripts in diesem Repo).
  */
 (function () {
-  const VERSION = 'v1.0.0';
+  const VERSION = 'v1.0.1';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -183,7 +183,7 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:340px;overflow:auto;'
+  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
