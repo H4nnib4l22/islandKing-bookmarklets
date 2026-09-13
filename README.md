@@ -1,11 +1,11 @@
 # Islandking Bookmarklets
 
-Vier Browser-Add-ons für islandking.ch, die meisten wahlweise als
+Fünf Browser-Add-ons für islandking.ch, die meisten wahlweise als
 Bookmarklet (Klick zum Öffnen, kein Install) oder als Tampermonkey-
 Userscript (öffnet automatisch beim Laden der Seite, kein Copy-Paste bei
 jeder Änderung mehr nötig). Alle Varianten laufen same-origin direkt in
-der Seite — Allianz Status und Ressourcenrechner mit deinem eigenen
-Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
+der Seite — Allianz Status, Ressourcenrechner und Spy Report Lookup mit
+deinem eigenen Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
 
 - **Allianz Status** (`alliance-status/`) — Overlay-Panel mit Online-Status
   und "zuletzt online" für alle Allianzmitglieder, Favoriten, eine eigene
@@ -45,8 +45,15 @@ Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   auf der Handel-Seite dieselben Schnell-Buttons (+1000/+5000/+10000/
   +20000/+25000) je für "Biete" und "Suche" im Angebotsformular.
   Kein eigenes Panel, reine DOM-Filterung.
+- **Spy Report Lookup** (`spy-report-lookup/`) — Overlay-Panel, Portierung
+  der gleichnamigen Browser-Extension. **Spionage**-Tab durchsucht
+  gespeicherte Spionageberichte nach Benutzername und formatiert Treffer
+  fertig zum Kopieren (Rohstoffe, Verteidigung, Gebäude, Schiffe,
+  Soldaten). **Flotte**-Tab listet die eigenen Schiffe/Soldaten der
+  Heimatinsel, ebenfalls fertig formatiert. Eigenes Bearer-Token, kein
+  GitHub-Token, kein externes Datenrepo.
 
-Alle vier Panels (alle drei Tampermonkey-Userscripts zusammen) erkennen
+Alle fünf Panels (alle vier Tampermonkey-Userscripts zusammen) erkennen
 sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und
 haben ein ⇄-Symbol zum Seitenwechsel links/rechts — beides merkt sich
 der Browser pro Panel über Reloads hinweg. Sie stapeln sich dabei immer

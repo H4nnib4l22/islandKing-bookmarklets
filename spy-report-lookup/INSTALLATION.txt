@@ -1,0 +1,89 @@
+Islandking Spy Report Lookup — Installationsanleitung (für Einsteiger)
+========================================================================
+
+WAS DAS IST
+Ein Knopf für deine Lesezeichenleiste im Browser. Klickst du drauf,
+während du auf islandking.ch bist, öffnet sich rechts ein kleines
+Fenster mit zwei Reitern: "Spionage" (Bericht zu einem Spielernamen
+suchen) und "Flotte" (deine eigene Flotte auflisten) — beides fertig
+formatiert zum Kopieren, z.B. für Discord.
+
+Du musst dafür NICHTS installieren, keine Erweiterung, keine App —
+nur ein normales Lesezeichen mit einem etwas längeren Inhalt als sonst.
+
+
+SCHRITT-FÜR-SCHRITT (Chrome / Edge — bei Firefox fast identisch)
+
+1. Lesezeichenleiste sichtbar machen
+   Tastenkombination drücken: Strg + Umschalt + B
+   (Die Taste "Umschalt" ist die mit dem Pfeil nach oben, über Strg.)
+   Jetzt siehst du oben im Browser, direkt unter der Adresszeile, eine
+   leere Leiste.
+
+2. Ein neues Lesezeichen anlegen
+   Mit der rechten Maustaste auf diese leere Leiste klicken.
+   Im Menü, das aufklappt, auf "Seite hinzufügen" bzw. "Lesezeichen
+   hinzufügen" klicken.
+   Es öffnet sich ein kleines Fenster mit zwei Feldern: "Name" und "URL".
+
+3. Namen eintragen
+   Ins Feld "Name" schreibst du z.B.:  IK Spy Lookup
+
+4. Code eintragen
+   Öffne die Datei "bookmarklet.url.txt" (liegt im selben Ordner wie
+   diese Anleitung) z.B. mit dem Windows-Editor (Notepad).
+   Markiere darin ALLES (Strg + A) und kopiere es (Strg + C).
+   Der Text ist sehr lang und beginnt mit "javascript:" — das ist
+   richtig so, nicht wundern.
+   Wechsle zurück zum Browser-Fenster von Schritt 2, klicke ins Feld
+   "URL", lösche den Inhalt falls dort schon etwas steht (Strg + A,
+   dann Entf), und füge den kopierten Text ein (Strg + V).
+
+5. Speichern
+   Auf "Speichern" klicken. Fertig — in deiner Lesezeichenleiste steht
+   jetzt "IK Spy Lookup".
+
+
+BENUTZUNG
+
+1. Geh auf islandking.ch und logg dich ein, falls nötig.
+2. Klick in der Lesezeichenleiste auf "IK Spy Lookup".
+   → Es öffnet sich das Lookup-Fenster.
+3. Reiter "Spionage": Benutzernamen eintragen (Enter drückt auch den
+   Knopf), auf "Bericht auslesen" klicken.
+   → Unten erscheint der formatierte Bericht.
+4. Reiter "Flotte": auf "Flotte auslesen" klicken.
+   → Unten erscheint deine Flotte (Schiffe + Soldaten).
+5. Auf "In die Zwischenablage kopieren" klicken, dann z.B. in Discord
+   einfügen (Strg + V).
+6. Nochmal auf "IK Spy Lookup" klicken schliesst das Fenster wieder.
+
+
+WENN ETWAS NICHT KLAPPT
+
+• Es passiert nichts beim Klick auf "IK Spy Lookup"
+  → Du bist wahrscheinlich nicht auf islandking.ch. Erst dorthin
+    wechseln, dann nochmal klicken.
+
+• "Kein Spionagebericht für ... gefunden"
+  → Es liegt (noch) kein gespeicherter Bericht zu diesem Namen vor —
+    erst muss jemand die Zielinsel bespäht haben.
+
+• "Session abgelaufen (401)"
+  → Die Seite lädt automatisch neu; danach "IK Spy Lookup" nochmal
+    anklicken.
+
+
+Der Titel oben im Fenster ist ein-/ausklappbar (drauf klicken — bleibt
+immer sichtbar, darunter angedockte Fenster rücken automatisch nach)
+und hat rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts
+andocken). Beide Einstellungen merkt sich der Browser über Reloads
+hinweg — gilt für Bookmarklet und Tampermonkey-Userscript gleichermaßen.
+
+
+WARUM DAS SO KOMPLIZIERT AUSSIEHT (kurz erklärt)
+islandking.ch lässt keine "normale" Webseite von aussen auf die
+Spieldaten zugreifen (Sicherheitsmassnahme der Spiel-Seite). Ein
+Lesezeichen mit diesem Extra-Code läuft aber direkt IN der
+islandking.ch-Seite selbst, wenn du draufklickst — deshalb funktioniert
+es trotzdem, ganz ohne Installation.
