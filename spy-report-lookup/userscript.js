@@ -8,6 +8,8 @@
 // @match        https://islandking.ch/*
 // @grant        none
 // @run-at       document-idle
+// @downloadURL  https://update.greasyfork.org/scripts/595653/Islandking%20Spy%20Report%20Lookup.user.js
+// @updateURL    https://update.greasyfork.org/scripts/595653/Islandking%20Spy%20Report%20Lookup.meta.js
 // ==/UserScript==
 
 /*
