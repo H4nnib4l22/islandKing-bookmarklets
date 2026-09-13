@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.4.0
+// @version      1.5.0
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -55,7 +55,7 @@
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
-  if (existing) { existing.remove(); return; }
+  if (existing) { existing.__ikasCleanup?.(); existing.remove(); return; }
 
   const LS_LAST_SEEN = 'ikas_lastSeenById';
   const LS_FAVORITES = 'ikas_favorites';
@@ -242,7 +242,8 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  closeBtn.onclick = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); panel.remove(); };
+  panel.__ikasCleanup = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); };
+  closeBtn.onclick = () => { panel.__ikasCleanup(); panel.remove(); };
 
   const style = document.createElement('style');
   style.textContent = '#ikas-panel .ikas-tabbtn{position:relative;flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'
@@ -634,4 +635,13 @@
 
   const refreshHandle = setInterval(refreshAll, REFRESH_MS);
   refreshAll();
+
+  // Nutzerwunsch: alle 10 Min. Seite neu laden, damit ein bald ablaufender
+  // Token (~15 Min. Lebensdauer laut Notifier-Extension) proaktiv erneuert
+  // wird statt erst nach einem sichtbaren 401 zu reagieren. Anders als beim
+  // Bookmarklet oeffnet sich das Panel danach automatisch wieder (Script
+  // laeuft bei jedem Seitenladen erneut).
+  const reloadHandle = setInterval(() => location.reload(), 10 * 60 * 1000);
+  const prevCleanup = panel.__ikasCleanup;
+  panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); };
 })();
