@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.1
+// @version      1.6.2
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -82,7 +82,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.1';
+  const VERSION = 'v1.6.2';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
@@ -413,16 +413,30 @@
     return units;
   }
 
+  // Bei Ueberleben mit angeschlagenem HP-Pool geht die letzte (angebrochene)
+  // Einheit nicht kampfbereit, sondern beschaedigt ins Reparaturdock zurueck
+  // (Nutzer-Beobachtung 2026-09-13: 1 von 2 Schlachtschiffen kam mit 76%
+  // Restleben ins Dock). curHpPool minus die vollen Einheiten davor = Rest-HP
+  // der angebrochenen letzten Einheit.
+  function dockPercent(f) {
+    if (!f || f.after <= 0) return null;
+    const rest = f.curHpPool - (f.after - 1) * f.hp;
+    const pct = Math.round((rest / f.hp) * 100);
+    return pct < 100 ? pct : null;
+  }
+
   function resultTable(title, before, final) {
     let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + '</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
-      + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td></tr>';
+      + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock</td></tr>';
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
+      const pct = dockPercent(f);
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
-        + '<td style="opacity:.75">' + (u.count - after) + '</td></tr>';
+        + '<td style="opacity:.75">' + (u.count - after) + '</td>'
+        + '<td style="opacity:.75">' + (pct !== null ? '1x ' + pct + '%' : '—') + '</td></tr>';
     });
     html += '</table>';
     return html;
