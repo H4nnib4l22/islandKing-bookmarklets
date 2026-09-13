@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.5
+// @version      1.6.6
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -82,7 +82,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.5';
+  const VERSION = 'v1.6.6';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
@@ -471,10 +471,14 @@
     html += '</table>';
     if (repairTotal.wood || repairTotal.stone || repairTotal.iron) {
       // Als eigene Tabelle statt Flex-Zeile: eine Tabellenzelle je Icon+Zahl
-      // bricht nie mitten im Paar um, egal wie eng die Panel-Breite ist
-      // (Nutzer-Korrektur 2026-09-13: Flex-Zeile riss Zahlen unter die Icons).
+      // bricht nie mitten im Paar um, egal wie eng die Panel-Breite ist.
+      // display:inline-block auf dem img noetig, weil islandking.ch selbst
+      // global "img { display: block }" setzt - white-space:nowrap allein
+      // verhindert nur Textumbruch, nicht den erzwungenen Block-Umbruch vor
+      // dem folgenden Text (Nutzer-Korrektur 2026-09-13/14: Zahl blieb
+      // trotz nowrap unter dem Icon).
       const cell = (src, val) => '<td style="white-space:nowrap;padding-right:10px">'
-        + '<img src="' + src + '" width="14" height="14" style="vertical-align:middle;margin-right:3px">'
+        + '<img src="' + src + '" width="14" height="14" style="display:inline-block;vertical-align:middle;margin-right:3px">'
         + Math.round(val).toLocaleString() + '</td>';
       html += '<table style="font-size:11px;opacity:.75;margin-top:4px;border-collapse:collapse">'
         + '<tr><td style="padding-right:8px">Reparaturkosten:</td>'
