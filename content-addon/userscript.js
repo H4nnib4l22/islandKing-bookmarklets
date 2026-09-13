@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.3.3
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100) und im Handel (+1000/+5000/+10000/+20000/+25000).
+// @version      1.4.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000) und im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen).
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -45,7 +45,21 @@
  *    groesseren Schritten (+1000/+5000/+10000/+20000/+25000) passend zu
  *    Handelsmengen statt Truppenzahlen.
  *
- * Alle drei Funktionen ueber ein gemeinsames Poll-Intervall erkannt (gleiche
+ * 4) Hafen-Rohstoffverteilung (v1.4.0): islandking.ch/harbor, Sektion
+ *    "Rohstoffe transportieren" hat 4 <label> (Holz/Stein/Eisen/Kohle),
+ *    je mit einem namenlosen <input type="number"> - Erkennung nur ueber
+ *    den Label-Text moeglich. Je Label ein "Fuellen"-Button: Klick nimmt
+ *    alle Rohstoffe, die gerade > 0 sind, PLUS den angeklickten, und
+ *    verteilt die freie Laderaum-Kapazitaet (Gesamtkapazitaet minus der
+ *    fuer Truppen reservierten Plaetze, die sich denselben Laderaum
+ *    teilen) gleichmaessig auf genau diese Menge - bereits befuellte
+ *    Rohstoffe werden dabei neu aufgeteilt (Beispiel Laderaum 27000: Holz
+ *    fuellen -> 27000; danach Stein fuellen -> beide 13500; danach Eisen
+ *    fuellen -> alle drei 9000). Verifiziert live per Claude-in-Chrome:
+ *    native Value-Setter + "input"-Event noetig, damit Reacts
+ *    kontrollierte Inputs (kein Vue wie bei Kaserne/Handel) reagieren.
+ *
+ * Alle vier Funktionen ueber ein gemeinsames Poll-Intervall erkannt (gleiche
  * Technik wie in den anderen drei Islandking-Userscripts dieses Repos),
  * da die Seiten per Vue nachladen (Ausbau/Forschungsstart/Rekrutierung/
  * Inselwechsel), ohne einen vollen Seiten-Reload auszuloesen.
@@ -113,6 +127,7 @@
     });
     tickBarracksQuickAdd();
     tickMarketQuickAdd();
+    tickHarborQuickFill();
   }
 
   // -------------------------------------------------------------------
@@ -206,6 +221,101 @@
       }
       ensureQuickAddRow(label, input, MARKET_STEPS, input.closest('div'));
     });
+  }
+
+  // -------------------------------------------------------------------
+  // Hafen-Rohstoffverteilung — siehe Kommentar am Dateikopf. Die Sektion
+  // ist als <section> mit Ueberschrift UND "Laderaum:"-Text erkennbar,
+  // das grenzt sie zuverlaessig gegen die gleichnamige "Laderaum:"-
+  // Anzeige der weiter unten liegenden "Schiffe stationieren"-Sektion ab.
+  // -------------------------------------------------------------------
+
+  const HARBOR_RESOURCES = ['Holz', 'Stein', 'Eisen', 'Kohle'];
+  const HARBOR_TROOPS = ['Einfacher Soldat', 'Schwertkämpfer', 'Musketiere'];
+
+  function parseNum(text) {
+    return parseInt(String(text).replace(/[^\d]/g, ''), 10) || 0;
+  }
+
+  // React-kontrollierte Inputs ignorieren ein simples "input.value = x" -
+  // der native Setter + ein "input"-Event sind noetig, damit React den
+  // Wert uebernimmt (verifiziert live, siehe Dateikopf-Kommentar).
+  function setReactInputValue(input, value) {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(input, String(value));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function findHarborCard() {
+    return Array.from(document.querySelectorAll('section')).find(
+      (s) => s.textContent.includes('Rohstoffe transportieren') && s.textContent.includes('Laderaum')
+    );
+  }
+
+  function findHarborResourceEntries(card) {
+    return HARBOR_RESOURCES.map((name) => {
+      const label = Array.from(card.querySelectorAll('label')).find(
+        (l) => l.querySelector('input[type="number"]') && l.textContent.includes(name)
+      );
+      return label ? { name, label, input: label.querySelector('input[type="number"]') } : null;
+    }).filter(Boolean);
+  }
+
+  // Kuerzeste Fundstelle je Text-Anker gewinnt - das ist die konkrete
+  // Zeile selbst statt eines Vorfahren, der weitere Sektionsinhalte
+  // mit-enthaelt (siehe ensureQuickAddRow-Kommentar zu Robustheit).
+  function shortestMatch(card, startsWithText) {
+    return Array.from(card.querySelectorAll('*'))
+      .filter((e) => e.textContent.trim().startsWith(startsWithText))
+      .sort((a, b) => a.textContent.length - b.textContent.length)[0];
+  }
+
+  function findHarborCapacity(card) {
+    const el = shortestMatch(card, 'Laderaum:');
+    const m = el && el.textContent.match(/\/\s*([\d'.,]+)/);
+    return m ? parseNum(m[1]) : null;
+  }
+
+  function findHarborTroopSum(card) {
+    return HARBOR_TROOPS.reduce((sum, name) => {
+      const hit = shortestMatch(card, name);
+      const input = hit && hit.closest('div') && hit.closest('div').querySelector('input[type="number"]');
+      return sum + (input ? parseNum(input.value) : 0);
+    }, 0);
+  }
+
+  function fillHarborResource(card, entries, target) {
+    const capacity = findHarborCapacity(card);
+    if (capacity === null) return;
+    const room = Math.max(0, capacity - findHarborTroopSum(card));
+    const active = entries.filter((e) => e === target || parseNum(e.input.value) > 0);
+    const share = Math.floor(room / active.length);
+    active.forEach((e) => setReactInputValue(e.input, share));
+  }
+
+  function ensureHarborFillButtons(card, entries) {
+    entries.forEach((entry) => {
+      if (entry.label.querySelector('[data-ikba-harborfill]')) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.ikbaHarborfill = '1';
+      btn.textContent = 'Füllen';
+      btn.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:11px;border-radius:4px;border:1px solid #24344a;background:#142338;color:#e6edf3;cursor:pointer';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        fillHarborResource(card, entries, entry);
+      });
+      entry.label.appendChild(btn);
+    });
+  }
+
+  function tickHarborQuickFill() {
+    if (location.pathname !== '/harbor') return;
+    const card = findHarborCard();
+    if (!card) return;
+    const entries = findHarborResourceEntries(card);
+    if (entries.length < 2) return;
+    ensureHarborFillButtons(card, entries);
   }
 
   tick();
