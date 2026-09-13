@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.0
+// @version      1.2.1
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -22,7 +22,7 @@
  * Produktion/h dazu.
  */
 (function () {
-  const VERSION = 'v1.2.0';
+  const VERSION = 'v1.2.1';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
