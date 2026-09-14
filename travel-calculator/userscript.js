@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.11
+// @version      1.6.12
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -44,9 +44,11 @@
  * v1.6.10: "Eigene Flotte laden" fragt jetzt erst, von welcher Insel
  * geladen werden soll (Dropdown erscheint nur bei mehr als einer Insel,
  * inkl. "Alle Inseln" als weiterhin verfuegbare Summen-Option).
- * v1.6.11: 🔄-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
+ * v1.6.11: ↻-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
  * Version auf Greasy Fork liegt (braucht @grant GM_xmlhttpRequest statt
  * @grant none, siehe Kommentar bei ikbmWindow weiter unten).
+ * v1.6.12: der Button nutzt jetzt "↻" statt "🔄" - farbiges Emoji stach
+ * neben den einfarbigen ⇄/✕-Icons zu stark heraus (Nutzer-Feedback).
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -106,10 +108,10 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.11';
+  const VERSION = 'v1.6.12';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
-  // 🔄-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
+  // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
   // CSP von islandking.ch, die einen direkten fetch() auf update.greasyfork.org
   // blockt - live verifiziert 2026-09-14) die @version im Greasy-Fork-
   // Update-Feed gegen VERSION oben. Aendert NICHTS selbst - Tampermonkey
@@ -142,12 +144,12 @@
           iconEl.textContent = '🆕';
           iconEl.title = 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.';
         }
-        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
       },
       onerror: () => {
         iconEl.textContent = '⚠️';
         iconEl.title = 'Update-Check fehlgeschlagen (Netzwerkfehler).';
-        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
       },
     });
   }
@@ -171,7 +173,7 @@
     panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
       + '<span style="display:flex;gap:10px;align-items:center">'
-      + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">🔄</span>'
+      + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
       + '</span></div>'

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.7
+// @version      1.6.8
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -54,9 +54,11 @@
  *   Eintraege daher ungetestet, generisch/tolerant gerendert (gleiches
  *   Muster wie outgoing beim Angriffe-Tab). Roter Punkt wie beim
  *   Angriffe-Tab bei neu hinzugekommenen Meldungen.
- * v1.6.7: 🔄-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
+ * v1.6.7: ↻-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
  * Version auf Greasy Fork liegt (braucht @grant GM_xmlhttpRequest statt
  * @grant none, siehe Kommentar bei ikbmWindow weiter unten).
+ * v1.6.8: der Button nutzt jetzt "↻" statt "🔄" - farbiges Emoji stach
+ * neben den einfarbigen ⇄/✕-Icons zu stark heraus (Nutzer-Feedback).
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -219,10 +221,10 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.7';
+  const VERSION = 'v1.6.8';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
-  // 🔄-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
+  // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
   // CSP von islandking.ch, die einen direkten fetch() auf update.greasyfork.org
   // blockt) die @version im Greasy-Fork-Update-Feed gegen VERSION oben.
   // Aendert NICHTS selbst - Tampermonkey aktualisiert ohnehin automatisch,
@@ -255,12 +257,12 @@
           iconEl.textContent = '🆕';
           iconEl.title = 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.';
         }
-        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
       },
       onerror: () => {
         iconEl.textContent = '⚠️';
         iconEl.title = 'Update-Check fehlgeschlagen (Netzwerkfehler).';
-        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
       },
     });
   }
@@ -276,7 +278,7 @@
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
-    + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">🔄</span>'
+    + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
