@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.9
+// @version      1.6.10
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
 // @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
 // @run-at       document-idle
 // @downloadURL  https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.user.js
 // @updateURL    https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.meta.js
@@ -62,6 +63,10 @@
  * v1.6.9: auch die restlichen Icon-Zustaende (Pruefen/Aktuell/Update/
  * Fehler) sind jetzt einfarbige Glyphen statt Mehrfarben-Emoji, gefaerbt
  * mit den im Skript ohnehin verwendeten Signalfarben (gruen/gold/rot).
+ * v1.6.10: bei verfuegbarem Update oeffnet der ↻-Button jetzt per
+ * GM_openInTab automatisch Tampermonkeys eigene Update-Bestaetigungs-
+ * seite (braucht zusaetzlich @grant GM_openInTab) - vorher zeigte er nur
+ * an, dass ein Update existiert, ohne die Installation anzustossen.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -224,16 +229,24 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.9';
+  const VERSION = 'v1.6.10';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
   // CSP von islandking.ch, die einen direkten fetch() auf update.greasyfork.org
   // blockt) die @version im Greasy-Fork-Update-Feed gegen VERSION oben.
-  // Aendert NICHTS selbst - Tampermonkey aktualisiert ohnehin automatisch,
-  // das ist nur eine sichtbare Anzeige auf Nutzerwunsch statt auf den
-  // naechsten Auto-Check zu warten.
+  // Bei verfuegbarem Update oeffnet er zusaetzlich per GM_openInTab die
+  // @downloadURL - Tampermonkey erkennt diese .user.js-Navigation selbst
+  // und zeigt seine eigene Update-Bestaetigungsseite (identischer Ablauf
+  // wie ein Klick auf einen Greasy-Fork-Install-Link). Tampermonkey laesst
+  // KEIN Script sich selbst geraeuschlos ueberschreiben - der letzte
+  // Bestaetigungsklick dort bleibt dem Nutzer vorbehalten, das ist eine
+  // bewusste Sicherheitsgrenze der Extension, kein Bug hier. GM_openInTab
+  // statt window.open(), weil window.open() nach einem asynchronen
+  // GM_xmlhttpRequest-Callback (kein direkter Klick-Kontext mehr) vom
+  // Popup-Blocker verschluckt werden kann.
   const UPDATE_META_URL = 'https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.meta.js';
+  const UPDATE_DOWNLOAD_URL = 'https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.user.js';
   // Einfarbige Glyphen statt Mehrfarben-Emoji fuer JEDEN Icon-Zustand (nicht
   // nur den Ruhezustand ↻) - Nutzerwunsch nach dem ↻-Fix. Farben sind die
   // im ganzen Skript ohnehin schon verwendeten Signalfarben (gruen=ok,
@@ -263,8 +276,11 @@
         const remoteVersion = m[1];
         if (remoteVersion === localVersion) {
           setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
+        } else if (typeof GM_openInTab !== 'undefined') {
+          setIconState(iconEl, '↑', '#f0d68a', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
+          GM_openInTab(UPDATE_DOWNLOAD_URL, { active: true });
         } else {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.', true);
+          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
         }
       },
       onerror: () => {
