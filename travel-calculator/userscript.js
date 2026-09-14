@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.15
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.6.16
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -64,6 +64,10 @@
  * 2026-09-14) - Nachschlag ueber /api/rankings?q=<Name>, dessen
  * players[0].alliance bereits das Kuerzel selbst ist (nicht der volle
  * Allianzname), pro Name gecacht.
+ * v1.6.16: Panel-Header (Titel+Icons) und bei Kampfrechner zusaetzlich die
+ * PvP/Konvoi-entern-Tabs bleiben jetzt fixiert sichtbar, waehrend nur der
+ * Inhalt darunter scrollt (Nutzerwunsch) - Panel selbst ist jetzt eine
+ * Flexbox-Spalte statt direkt overflow:auto, body-Div traegt das Scrollen.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -123,7 +127,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.15';
+  const VERSION = 'v1.6.16';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -196,17 +200,24 @@
     panel.dataset.ikbmPanel = '1';
     panel.dataset.ikbmSide = side;
     panel.dataset.ikbmSeq = seq;
-    panel.style.cssText = 'position:fixed;width:' + width + 'px;overflow:auto;'
+    // display:flex;flex-direction:column statt overflow:auto direkt auf dem
+    // Panel: Header bleibt so als eigenes Flex-Item fix sichtbar, nur der
+    // body (flex:1;overflow:auto weiter unten) scrollt - Nutzerwunsch, dass
+    // Titel/Tabs beim Scrollen nicht mitwandern. min-height:0 auf body ist
+    // der uebliche Flexbox-Trick, ohne den ein Flex-Item nicht kleiner als
+    // sein Inhalt wird und overflow:auto wirkungslos bleibt.
+    panel.style.cssText = 'position:fixed;width:' + width + 'px;overflow:hidden;'
+      + 'display:flex;flex-direction:column;'
       + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-    panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
       + '<span style="display:flex;gap:10px;align-items:center">'
       + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
       + '</span></div>'
-      + '<div data-role="body"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
+      + '<div data-role="body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
     document.body.appendChild(panel);
 
     const header = panel.querySelector('[data-role="header"]');
@@ -519,7 +530,13 @@
     + '<div id="ikcc-convoy-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Schiffe eingeben und auf "Entern" klicken.</p></div>';
 
   const ikccTabBtnStyle = 'flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px';
-  const combatBodyHtml = '<nav style="display:flex;gap:4px;margin-bottom:10px">'
+  // position:sticky bezieht sich auf den naechsten scrollenden Vorfahren -
+  // das ist body (flex:1;overflow:auto, siehe createPanel), NICHT das ganze
+  // Panel. top:0 heisst daher "oben im sichtbaren Scrollbereich von body",
+  // was direkt unter dem (separat fixierten) Header liegt - kein manuelles
+  // Hoehe-des-Headers-Ausmessen noetig. Eigener Hintergrund noetig, sonst
+  // scheint darunterliegender Inhalt beim Scrollen durch.
+  const combatBodyHtml = '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
     + '<button id="ikcc-tab-pvp" style="' + ikccTabBtnStyle + '">PvP</button>'
     + '<button id="ikcc-tab-convoy" style="' + ikccTabBtnStyle + '">Konvoi entern</button>'
     + '</nav>'
