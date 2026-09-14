@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.6
+// @version      1.6.7
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -444,12 +444,22 @@
     return restPct < 100 ? 100 - restPct : null;
   }
 
+  // ANG:/DEF: am Ende der Titelzeile - gleiche Emoji-Konvention wie die
+  // Seite selbst (Schiffswerft-Karten: "Tempo … · ⚔️ 40 · 🛡 60 …", kein
+  // Icon-Asset, reines Unicode - live verifiziert im DOM 2026-09-14).
+  function totalStats(units) {
+    let att = 0, hp = 0;
+    units.forEach((u) => { att += u.attack * u.count; hp += u.hp * u.count; });
+    return '<span style="font-weight:normal;opacity:.8;float:right">⚔️ ANG: ' + att.toLocaleString()
+      + ' &nbsp; 🛡 DEF: ' + hp.toLocaleString() + '</span>';
+  }
+
   // Reparaturkosten = Schaden% der angebrochenen Einheit * ihre Baukosten
   // (Nutzerangabe 2026-09-13: bei 76% Schaden fallen exakt 76% der
   // Baukosten als Reparaturkosten an). Nur fuer Schiffstypen mit bekanntem
   // SHIP_BUILD_COST - Truppen/Gebaeude/Piratenschiffe haben keins.
   function resultTable(title, before, final) {
-    let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + '</div>'
+    let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + totalStats(before) + '</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
       + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
     const repairTotal = { wood: 0, stone: 0, iron: 0 };
