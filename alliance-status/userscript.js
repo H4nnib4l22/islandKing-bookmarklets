@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.11
-// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Panel schrumpft auf den tatsächlichen Inhalt statt fixer Höhe
+// @version      1.6.12
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Panel schrumpft auf den tatsächlichen Inhalt statt fixer Höhe, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -72,6 +72,11 @@
  * eingeklappte Mitgliederliste) hoert das Panel direkt danach auf statt
  * leeren Platz bis zur alten Fixhoehe zu zeigen. Lange Listen scrollen wie
  * bisher intern, sobald sie die Kappung erreichen.
+ * v1.6.12: Panel-Breite 380px -> 420px (Nutzerwunsch) - die Scrollbar der
+ * Tab-Bodies ueberlagerte bei 380px das ✉-Icon am rechten Rand der
+ * Mitglieder-Zeilen. Zusaetzlich scrollbar-gutter:stable auf den vier
+ * Tab-Bodies, da reines Verbreitern allein nicht reicht (Zeilen sind
+ * 100%-breit und wandern mit).
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -235,7 +240,7 @@
   // ihre natuerliche Hoehe. Panel selbst hat gar keine explizite Hoehe mehr
   // gesetzt (Default auto) und folgt damit automatisch mit.
   const BODY_HEIGHT = 330; // Kappung/Scroll-Grenze je Tab-Body, kein Fixmass mehr
-  const VERSION = 'v1.6.11';
+  const VERSION = 'v1.6.12';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -300,7 +305,7 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:380px;display:flex;flex-direction:column;'
+  panel.style.cssText = 'position:fixed;width:420px;display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
@@ -317,10 +322,10 @@
     + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
     + '<button id="ikas-tab-scout" class="ikas-tabbtn" style="display:none">Spähposten<span id="ikas-scout-dot" class="dot" hidden></span></button>'
     + '</nav>'
-    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box">Lade…</div>'
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
     + '</div>';
   document.body.appendChild(panel);
 

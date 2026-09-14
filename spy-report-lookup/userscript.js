@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.2
-// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header
+// @version      1.1.3
+// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -41,9 +41,13 @@
  * Version auf Greasy Fork liegt (braucht @grant GM_xmlhttpRequest statt
  * @grant none, siehe Kommentar bei ikbmWindow weiter unten) - fehlte hier
  * bisher als einzigem der vier Panels (Nutzer-Meldung 2026-09-14).
+ * v1.1.3: Panel-Breite 380px -> 420px (Nutzerwunsch) - die Scrollbar
+ * ueberlagerte bei 380px Icons am rechten Rand der Zeilen. Zusaetzlich
+ * scrollbar-gutter:stable auf dem body-Div, da reines Verbreitern allein
+ * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.2';
+  const VERSION = 'v1.1.3';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -263,7 +267,7 @@
   // weiter unten) bleiben so fix sichtbar, nur der Inhalt darunter scrollt
   // (Nutzerwunsch, wie im Kampfrechner-Panel des Reisezeitenrechners
   // uebernommen).
-  panel.style.cssText = 'position:fixed;width:380px;overflow:hidden;'
+  panel.style.cssText = 'position:fixed;width:420px;overflow:hidden;'
     + 'display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
@@ -274,7 +278,7 @@
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body" id="iksr-body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
+    + '<div data-role="body" id="iksr-body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>'
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
     + '<button id="iksr-tab-spy" class="iksr-tabbtn active">Spionage</button>'
     + '<button id="iksr-tab-fleet" class="iksr-tabbtn">Flotte</button>'

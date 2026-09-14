@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.17
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl
+// @version      1.6.18
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -72,6 +72,16 @@
  * die Bezugs-Schiffstempo-Auswahl fixiert (position:sticky-Wrapper, gleiches
  * Muster wie die Kampfrechner-Tabs) - nur die Ergebnistabelle darunter
  * scrollt.
+ * v1.6.18: Panel-Breite 380px -> 420px (Nutzerwunsch) - die Scrollbar der
+ * Tab-Bodies ueberlagerte bei 380px das "✕"/📌/✉-Icon am rechten Rand der
+ * Zeilen (Kampfrechner-Angreifer-✕, Allianz-Mitglieder-✉). Reines
+ * Verbreitern reicht allein nicht (Zeilen sind flex/100%-breit, wandern
+ * also mit) - zusaetzlich scrollbar-gutter:stable + padding-right:8px auf
+ * den scrollenden body-Divs: gutter:stable reserviert dauerhaft Platz fuer
+ * die Scrollbar (statt dass Overlay-Scrollbars je nach Betriebssystem/
+ * Browser-Einstellung ueber den Inhalt gezeichnet werden), die 8px
+ * garantieren zusaetzlich sichtbaren Abstand statt Icons bis auf 0px an
+ * die Scrollbar heranzulassen.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -131,7 +141,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.17';
+  const VERSION = 'v1.6.18';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -221,7 +231,7 @@
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
       + '</span></div>'
-      + '<div data-role="body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
+      + '<div data-role="body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
     document.body.appendChild(panel);
 
     const header = panel.querySelector('[data-role="header"]');
@@ -312,7 +322,7 @@
     + '</div>'
     + '<div id="iktc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Start- und Zielkoordinaten eingeben.</p></div>';
 
-  const travel = createPanel('iktc-panel', '🧭 Reisezeitenrechner', 380, 'right', travelBodyHtml);
+  const travel = createPanel('iktc-panel', '🧭 Reisezeitenrechner', 420, 'right', travelBodyHtml);
 
   function run() {
     const p1 = parseCoords(document.getElementById('iktc-start').value);
@@ -555,8 +565,10 @@
 
   // Einheitliche Panel-Breite ueber alle vier Panels (Allianz Status,
   // Ressourcenrechner, Reisezeitenrechner, Kampfrechner) — passt so in
-  // den verfuegbaren Freiraum, ohne dass eines breiter herausragt.
-  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 380, 'right', combatBodyHtml);
+  // den verfuegbaren Freiraum, ohne dass eines breiter herausragt. 380->420
+  // (Nutzerwunsch 2026-09-14): die Scrollbar der Tab-Bodies ueberlagerte bei
+  // 380px das "✕"/📌/✉-Icon am rechten Rand der Zeilen.
+  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 420, 'right', combatBodyHtml);
 
   // Ein Klick auf ein "✕" (data-ikcc-clear, siehe unitRow) leert genau das
   // dazugehoerige Feld — ein einziger delegierter Listener statt einem pro

@@ -195,7 +195,7 @@
   // natuerliche Hoehe, das Panel selbst hat keine explizite Hoehe mehr
   // gesetzt (Default auto) und folgt automatisch mit.
   const BODY_HEIGHT = 330; // Kappung/Scroll-Grenze je Tab-Body, kein Fixmass mehr
-  const VERSION = 'v1.6.7';
+  const VERSION = 'v1.6.8';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -203,7 +203,7 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:380px;display:flex;flex-direction:column;'
+  panel.style.cssText = 'position:fixed;width:420px;display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
@@ -219,10 +219,10 @@
     + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
     + '<button id="ikas-tab-scout" class="ikas-tabbtn" style="display:none">Spähposten<span id="ikas-scout-dot" class="dot" hidden></span></button>'
     + '</nav>'
-    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box">Lade…</div>'
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
     + '</div>';
   document.body.appendChild(panel);
 

@@ -9,7 +9,7 @@
  * Produktion/h dazu.
  */
 (function () {
-  const VERSION = 'v1.2.2';
+  const VERSION = 'v1.2.3';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -90,7 +90,7 @@
   // Panel: Header bleibt so als eigenes Flex-Item fix sichtbar, nur der
   // body (flex:1;overflow:auto weiter unten) scrollt (Nutzerwunsch, wie im
   // Kampfrechner-Panel des Reisezeitenrechners uebernommen).
-  panel.style.cssText = 'position:fixed;width:380px;overflow:hidden;'
+  panel.style.cssText = 'position:fixed;width:420px;overflow:hidden;'
     + 'display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
@@ -100,7 +100,7 @@
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body" id="ikrc-body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>Lade Inseln…</div>';
+    + '<div data-role="body" id="ikrc-body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>Lade Inseln…</div>';
   document.body.appendChild(panel);
 
   const header = panel.querySelector('[data-role="header"]');
