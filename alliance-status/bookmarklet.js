@@ -21,10 +21,12 @@
  *   1:1 das Verfolgt-Tab-Muster aus der eigenstaendigen "Islandking
  *   Alliance Status"-Extension (content.js trackedTick/apiFetch).
  * - Angriffe: GET /api/alliance/fleets liefert bereits serverseitig nach
- *   Allianz gefiltert {incoming:[...], outgoing:[...]} (Feldschema je
- *   Eintrag laut HAR-Capture islandking.ch_ally.har: player, playerId,
- *   islandName, x, y, count, arriveAt, remainingSeconds - outgoing war im
- *   Capture leer, Feldnamen dort ungetestet, daher generisch gerendert).
+ *   Allianz gefiltert {incoming:[...], outgoing:[...]}. Echtes Feldschema
+ *   je Eintrag (live verifiziert 2026-09-14, Nutzer-Report "Daten
+ *   unvollstaendig" - die urspruengliche Annahme aus der HAR-Capture war
+ *   falsch, weil outgoing dort leer war): player, playerId, origin
+ *   (Name der Herkunftsinsel), target:{x,y,islandName,owner}, shipCount,
+ *   soldierCount, arriveAt, remainingSeconds.
  *   Gleicher Endpoint wie im Attack-Notifier (background.js), dort aber
  *   nur die incoming-Haelfte fuer Notifications genutzt.
  *   v1.3.0: roter Punkt am Angriffe-Tab bei neu hinzugekommenen Flotten
@@ -192,7 +194,7 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.5';
+  const VERSION = 'v1.6.6';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -277,6 +279,7 @@
     + '#ikas-panel .box .name{font-weight:600;font-size:12px}'
     + '#ikas-panel .box .meta{font-size:11px;color:#a9c6f0}'
     + '#ikas-panel .box .meta.on{color:#9fe0c0}'
+    + '#ikas-panel .box .time{font-size:11px;color:#7f95b3;white-space:nowrap;flex-shrink:0}'
     + '#ikas-panel .pin{background:none;border:none;color:#a9c6f0;opacity:.5;cursor:pointer;font-size:14px}'
     + '#ikas-panel .pin.active{color:#f0d68a;opacity:1}'
     + '#ikas-panel .rm{background:none;border:none;color:#f2a0a0;cursor:pointer;font-size:14px}'
@@ -498,19 +501,32 @@
     return `${sec}s`;
   }
 
+  // Echtes Response-Schema von /api/alliance/fleets live verifiziert
+  // (2026-09-14, Nutzer-Report "Daten unvollstaendig"): {player, playerId,
+  // origin, target:{x,y,islandName,owner}, shipCount, soldierCount,
+  // arriveAt, remainingSeconds} — abweichend von den zuvor angenommenen
+  // (nie existierenden) Feldern f.islandName/f.count/f.x/f.y.
   function renderFleetBox(f, incoming) {
     const box = document.createElement('div');
     box.className = incoming ? 'box incoming' : 'box outgoing';
     const info = document.createElement('div');
     info.className = 'info';
-    const coords = (f.x != null && f.y != null) ? ` (${f.x}|${f.y})` : '';
+    const t = f.target || {};
+    const coords = (t.x != null && t.y != null) ? ` (${t.x}|${t.y})` : '';
+    const counts = [];
+    if (f.shipCount != null) counts.push(`🚢 ${f.shipCount}`);
+    if (f.soldierCount) counts.push(`⚔️ ${f.soldierCount}`);
     const metaParts = [];
-    if (f.islandName) metaParts.push(f.islandName);
-    if (f.count != null) metaParts.push(`${f.count} Flotte(n)`);
-    metaParts.push('Ankunft in ' + formatCountdown(f.arriveAt));
-    info.innerHTML = `<div class="name">⚔️ ${f.player || '?'}${coords}</div>`
+    if (f.origin) metaParts.push(f.origin);
+    metaParts.push(`→${coords} ${t.owner || t.islandName || '?'}`);
+    if (counts.length) metaParts.push(counts.join(' · '));
+    info.innerHTML = `<div class="name">${f.player || '?'}</div>`
       + `<div class="meta">${metaParts.join(' · ')}</div>`;
     box.appendChild(info);
+    const time = document.createElement('div');
+    time.className = 'time';
+    time.textContent = formatCountdown(f.arriveAt);
+    box.appendChild(time);
     return box;
   }
 
@@ -528,7 +544,7 @@
     const arr = loadJson(LS_KNOWN_FLEETS, null);
     return Array.isArray(arr) ? new Set(arr) : null;
   })();
-  function fleetKey(f) { return [f.player, f.x, f.y, f.arriveAt].join('|'); }
+  function fleetKey(f) { return [f.player, f.target?.x, f.target?.y, f.arriveAt].join('|'); }
 
   async function renderAttacks() {
     const body = document.getElementById('ikas-attacks');
