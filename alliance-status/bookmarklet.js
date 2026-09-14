@@ -193,8 +193,9 @@
   // umgestellt (Kommentar und Code liefen auseinander, nur userscript.js
   // hatte den echten Fix). v1.6.14: "height" statt "max-height" NACHGEZOGEN
   // + BODY_HEIGHT 330px -> 190px (Nutzerwunsch, siehe userscript.js).
-  const BODY_HEIGHT = 190;
-  const VERSION = 'v1.6.14';
+  // v1.6.15: 190px war zu knapp - BODY_HEIGHT auf 300px angehoben.
+  const BODY_HEIGHT = 300;
+  const VERSION = 'v1.6.15';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');

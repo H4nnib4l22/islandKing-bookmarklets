@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.14
+// @version      1.6.15
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
 // @author       Oscar
 // @license      MIT
@@ -87,6 +87,7 @@
  * passt fuer den leeren Fall, laesst noch 2-3 Zeilen ohne Leerraum Platz
  * und scrollt bei mehr Inhalt (Favoriten/ausgeklappte Liste) wie bisher
  * intern - bleibt weiterhin FEST (kein Zurueckfall auf v1.6.11).
+ * v1.6.15: 190px war dem Nutzer zu knapp - BODY_HEIGHT auf 300px angehoben.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -244,7 +245,7 @@
   // die dynamische max-height liess das Panel je nach Inhalt springen;
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
-  const BODY_HEIGHT = 190;
+  const BODY_HEIGHT = 300;
   const VERSION = 'v1.6.13';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
