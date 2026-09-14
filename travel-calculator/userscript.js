@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.7
+// @version      1.6.8
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -32,6 +32,11 @@
  * eines Piraten-Konvois (DOM der Vue-SPA der Seite, kein eigenes Panel) —
  * uebertraegt dessen Schiffstypen+Anzahl direkt in den Konvoi-entern-Tab.
  * Nur sichtbar, solange das Popup selbst offen ist.
+ * v1.6.8: gleicher "An Kampfrechner senden"-Button auch bei jedem
+ * Spionagebericht (/spy-reports, neben "Erneut spähen") — uebertraegt
+ * Verteidigungsgebaeude/Schiffe/Soldaten des Berichts in den PvP-Tab
+ * (Verteidiger-Seite). Erkennung ueber den einzigartigen "Erneut
+ * spähen"-Buttontext, existiert nur auf Spionageberichten.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -82,7 +87,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.6';
+  const VERSION = 'v1.6.8';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
@@ -619,6 +624,90 @@
     });
   }
 
+  // "An Kampfrechner senden"-Button bei Spionageberichten (/spy-reports),
+  // rechts neben "Erneut spähen" — uebertraegt Verteidigungsgebaeude,
+  // Schiffe und Soldaten des Berichts in den PvP-Tab (Verteidiger-Seite).
+  // Live-DOM verifiziert 2026-09-14: jede Karte hat ein .grid mit Feldern
+  // (<p class="text-xs">Label</p><p>Wert</p>), Wert-Format "1× Schiffsname,
+  // 3× anderer Name" bzw. "leichter Turm Lv2" bzw. "keine"/"Keine
+  // Gebaeudeverteidigung vorhanden" wenn leer. Erkennung ausschliesslich
+  // ueber den einzigartigen "Erneut spähen"-Buttontext (existiert nur auf
+  // Spionageberichten, nicht auf Kampfberichten) statt einer URL-Pruefung.
+  function getSpyCardField(card, label) {
+    const grid = card.querySelector('.grid');
+    if (!grid) return null;
+    const field = Array.from(grid.children).find((el) => el.querySelector('p.text-xs')?.textContent.trim() === label);
+    if (!field) return null;
+    const valueP = Array.from(field.querySelectorAll('p')).find((p) => !p.className.includes('text-xs'));
+    return valueP ? valueP.textContent.replace(/\s+/g, ' ').trim() : null;
+  }
+
+  function parseCountList(text) {
+    if (!text || /^keine/i.test(text.trim())) return [];
+    return text.split(',').map((part) => {
+      const m = part.trim().match(/^(\d+)\s*[×x]\s*(.+)$/i);
+      return m ? { name: m[2].trim(), count: parseInt(m[1], 10) } : null;
+    }).filter(Boolean);
+  }
+
+  function parseBuildingList(text) {
+    if (!text || /^keine/i.test(text.trim())) return [];
+    return text.split(',').map((part) => {
+      const t = part.trim();
+      const m = t.match(/^(.+?)\s+Lv\s*(\d+)$/i);
+      return m ? { name: m[1].trim(), level: parseInt(m[2], 10) } : { name: t, level: null };
+    });
+  }
+
+  function sendSpyDefenseToKampfrechner(card) {
+    const ships = parseCountList(getSpyCardField(card, 'Schiffe'));
+    const troops = parseCountList(getSpyCardField(card, 'Soldaten'));
+    const buildings = parseBuildingList(getSpyCardField(card, 'Verteidigungsgebäude'));
+
+    const body = combat.panel.querySelector('[data-role="body"]');
+    if (body.hidden) combat.panel.querySelector('[data-role="collapse-toggle"]').click();
+    activateCombatTab('pvp');
+
+    // Verteidiger-Seite erst zuruecksetzen, sonst vermischen sich alte
+    // Handeingaben mit den neu uebertragenen Werten.
+    combat.panel.querySelectorAll('[data-ikcc-unit^="def:"]').forEach((inp) => { inp.value = 0; });
+    combat.panel.querySelectorAll('[data-ikcc-bldg-lv]').forEach((inp) => { inp.value = 0; });
+    combat.panel.querySelectorAll('[data-ikcc-bldg-fixed]').forEach((box) => { box.checked = false; });
+
+    [...ships, ...troops].forEach((s) => {
+      const target = normalizeShipName(s.name);
+      const input = Array.from(combat.panel.querySelectorAll('[data-ikcc-unit^="def:"]'))
+        .find((inp) => normalizeShipName(inp.dataset.ikccUnit.slice(4)) === target);
+      if (input) input.value = s.count;
+    });
+    buildings.forEach((b) => {
+      const target = normalizeShipName(b.name);
+      const fixedBox = Array.from(combat.panel.querySelectorAll('[data-ikcc-bldg-fixed]'))
+        .find((box) => normalizeShipName(box.dataset.ikccBldgFixed) === target);
+      if (fixedBox) { fixedBox.checked = true; return; }
+      const lvInput = Array.from(combat.panel.querySelectorAll('[data-ikcc-bldg-lv]'))
+        .find((inp) => normalizeShipName(inp.dataset.ikccBldgLv) === target);
+      if (lvInput && b.level != null) lvInput.value = b.level;
+    });
+
+    combat.panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function ensureSpySendButton() {
+    const spahenBtns = Array.from(document.querySelectorAll('button')).filter((b) => b.textContent.includes('Erneut spähen'));
+    spahenBtns.forEach((spahenBtn) => {
+      const container = spahenBtn.parentElement;
+      if (!container || container.querySelector('[data-ikcc-send-spy]')) return;
+      const card = spahenBtn.closest('li') || container;
+      const btn = document.createElement('button');
+      btn.dataset.ikccSendSpy = '1';
+      btn.className = spahenBtn.className.replace(/\bbg-amber-600\b/, 'bg-blue-600').replace(/\bhover:bg-amber-700\b/, 'hover:bg-blue-700');
+      btn.textContent = '⚔️ An Kampfrechner senden';
+      btn.addEventListener('click', (e) => { e.preventDefault(); sendSpyDefenseToKampfrechner(card); });
+      container.appendChild(btn);
+    });
+  }
+
   const ikccTabPvp = document.getElementById('ikcc-tab-pvp');
   const ikccTabConvoy = document.getElementById('ikcc-tab-convoy');
   const ikccBodyPvp = document.getElementById('ikcc-tabbody-pvp');
@@ -645,6 +734,7 @@
     travel.reposition();
     combat.reposition();
     ensureConvoySendButton();
+    ensureSpySendButton();
   }
   repositionAll();
   const repositionHandle = setInterval(repositionAll, 250);
