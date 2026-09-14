@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.14
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.6.15
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -57,6 +57,13 @@
  * GM_openInTab automatisch Tampermonkeys eigene Update-Bestaetigungs-
  * seite (braucht zusaetzlich @grant GM_openInTab) - vorher zeigte er nur
  * an, dass ein Update existiert, ohne die Installation anzustossen.
+ * v1.6.15: auf /battle-reports und /spy-reports steht jetzt hinter jedem
+ * Spielernamen (Angreifer+Verteidiger bzw. Spionage-Ziel) das Allianz-
+ * kuerzel in Klammern, z. B. "OscarZulu (BOB)". Weder /api/battle-reports
+ * noch /api/spy-reports liefern das Kuerzel mit (live verifiziert
+ * 2026-09-14) - Nachschlag ueber /api/rankings?q=<Name>, dessen
+ * players[0].alliance bereits das Kuerzel selbst ist (nicht der volle
+ * Allianzname), pro Name gecacht.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -116,7 +123,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.14';
+  const VERSION = 'v1.6.15';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -906,6 +913,71 @@
     });
   }
 
+  // Allianzkuerzel hinter dem Namen bei Angriffs-/Spionageberichten. Weder
+  // /api/battle-reports noch /api/spy-reports liefern das Kuerzel des
+  // Gegners mit (live verifiziert 2026-09-14, siehe JSON-Schema oben) -
+  // Nachschlag ueber /api/rankings?q=<Name>: players[0].alliance ist dort
+  // bereits das Kuerzel selbst, nicht der volle Allianzname (verifiziert:
+  // players[].alliance === alliances[].tag fuer dieselbe Allianz). Pro
+  // Name gecacht (kein Allianzwechsel waehrend einer Sitzung zu erwarten).
+  const allianceTagCache = new Map();
+  function fetchAllianceTag(name) {
+    if (allianceTagCache.has(name)) return allianceTagCache.get(name);
+    const p = fetch('/api/rankings?q=' + encodeURIComponent(name), { headers: ikccAuthHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        const player = (data.players || []).find((pl) => pl.name === name);
+        const tag = player && player.alliance ? player.alliance : '';
+        allianceTagCache.set(name, tag);
+        return tag;
+      })
+      .catch(() => '');
+    allianceTagCache.set(name, p);
+    return p;
+  }
+
+  function insertTagAfterName(textNode, name, tag) {
+    if (!tag || !textNode.parentNode) return;
+    textNode.textContent = textNode.textContent.replace(name, name + ' (' + tag + ')');
+  }
+
+  // markiert per data-Attribut auf dem <li>, damit der 250ms-Poll
+  // (repositionAll) denselben Bericht nicht wiederholt nachschlaegt.
+  function annotateSpyReportNames() {
+    document.querySelectorAll('li:not([data-ikcc-alliance-done])').forEach((li) => {
+      const span = Array.from(li.querySelectorAll('span')).find((s) =>
+        s.childNodes[0] && s.childNodes[0].nodeType === 3 && s.childNodes[0].textContent.includes('🔍'));
+      if (!span) return;
+      li.dataset.ikccAllianceDone = '1';
+      const textNode = span.childNodes[0];
+      const m = textNode.textContent.match(/🔍\s*([^·]+?)\s*·/);
+      if (!m) return;
+      const name = m[1].trim();
+      fetchAllianceTag(name).then((tag) => insertTagAfterName(textNode, name, tag));
+    });
+  }
+
+  function annotateBattleReportNames() {
+    document.querySelectorAll('li:not([data-ikcc-alliance-done])').forEach((li) => {
+      const p = Array.from(li.querySelectorAll('p')).find((el) =>
+        el.childNodes[0] && el.childNodes[0].nodeType === 3 && el.childNodes[0].textContent.includes('⚔️'));
+      if (!p) return;
+      li.dataset.ikccAllianceDone = '1';
+      const textNode = p.childNodes[0];
+      const m = textNode.textContent.match(/^(.+?)\s*⚔️\s*(.+?)\s*·/);
+      if (!m) return;
+      const attacker = m[1].trim();
+      const defender = m[2].trim();
+      fetchAllianceTag(attacker).then((tag) => insertTagAfterName(textNode, attacker, tag));
+      fetchAllianceTag(defender).then((tag) => insertTagAfterName(textNode, defender, tag));
+    });
+  }
+
+  function annotateReportAllianceTags() {
+    if (location.pathname === '/spy-reports') annotateSpyReportNames();
+    else if (location.pathname === '/battle-reports') annotateBattleReportNames();
+  }
+
   const ikccTabPvp = document.getElementById('ikcc-tab-pvp');
   const ikccTabConvoy = document.getElementById('ikcc-tab-convoy');
   const ikccBodyPvp = document.getElementById('ikcc-tabbody-pvp');
@@ -933,6 +1005,7 @@
     combat.reposition();
     ensureConvoySendButton();
     ensureSpySendButton();
+    annotateReportAllianceTags();
   }
   repositionAll();
   const repositionHandle = setInterval(repositionAll, 250);
