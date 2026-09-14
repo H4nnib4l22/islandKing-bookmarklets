@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.12
-// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Panel schrumpft auf den tatsächlichen Inhalt statt fixer Höhe, 420px breit statt 380px
+// @version      1.6.13
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -77,6 +77,10 @@
  * Mitglieder-Zeilen. Zusaetzlich scrollbar-gutter:stable auf den vier
  * Tab-Bodies, da reines Verbreitern allein nicht reicht (Zeilen sind
  * 100%-breit und wandern mit).
+ * v1.6.13: v1.6.11 (max-height statt fixer Hoehe) widerrufen - Nutzer
+ * wollte die dynamische Groesse doch nicht, sondern die feste Standard-
+ * groesse (BODY_HEIGHT=330px) als einheitliches Aussehen unabhaengig vom
+ * Inhalt (z.B. 5 Favoriten + eingeklappte Mitgliederliste).
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -230,17 +234,12 @@
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   const seq = nextPanelSeq();
 
-  // max-height statt fester Hoehe auf den Tab-Bodies (Nutzerwunsch
-  // 2026-09-14: bei nur 5 Favoriten + eingeklappter Mitgliederliste soll
-  // das Panel direkt danach aufhoeren, nicht bis zur alten Fixhoehe leeren
-  // Platz zeigen). BODY_HEIGHT bleibt als Kappung fuer lange Listen (siehe
-  // Kommentar-Historie: eine lange Mitgliederliste liess das Panel sonst
-  // bis zu 82% des Viewports einnehmen und drueckte das naechste gestapelte
-  // Panel aus der Sichtbarkeit) - kurze Inhalte schrumpfen jetzt einfach auf
-  // ihre natuerliche Hoehe. Panel selbst hat gar keine explizite Hoehe mehr
-  // gesetzt (Default auto) und folgt damit automatisch mit.
-  const BODY_HEIGHT = 330; // Kappung/Scroll-Grenze je Tab-Body, kein Fixmass mehr
-  const VERSION = 'v1.6.12';
+  // v1.6.13: zurueck auf feste Hoehe (Nutzerwunsch, widerruft v1.6.11) -
+  // die dynamische max-height liess das Panel je nach Inhalt springen;
+  // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
+  // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
+  const BODY_HEIGHT = 330;
+  const VERSION = 'v1.6.13';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -322,10 +321,10 @@
     + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
     + '<button id="ikas-tab-scout" class="ikas-tabbtn" style="display:none">Spähposten<span id="ikas-scout-dot" class="dot" hidden></span></button>'
     + '</nav>'
-    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
-    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
-    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box">Lade…</div>'
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
+    + '<div id="ikas-scout" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"></div>'
     + '</div>';
   document.body.appendChild(panel);
 

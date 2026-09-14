@@ -185,17 +185,11 @@
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   const seq = nextPanelSeq();
 
-  // max-height statt fester Hoehe auf den Tab-Bodies (Nutzerwunsch
-  // 2026-09-14: bei wenig Inhalt, z.B. nur 5 Favoriten + eingeklappter
-  // Mitgliederliste, soll das Panel direkt danach aufhoeren statt leeren
-  // Platz zu zeigen). BODY_HEIGHT bleibt als Kappung fuer lange Listen
-  // (Kommentar-Historie: eine lange Mitgliederliste liess das Panel sonst
-  // bis zu 82% des Viewports einnehmen und drueckte das naechste gestapelte
-  // Panel aus der Sichtbarkeit) - kurze Inhalte schrumpfen jetzt auf ihre
-  // natuerliche Hoehe, das Panel selbst hat keine explizite Hoehe mehr
-  // gesetzt (Default auto) und folgt automatisch mit.
-  const BODY_HEIGHT = 330; // Kappung/Scroll-Grenze je Tab-Body, kein Fixmass mehr
-  const VERSION = 'v1.6.8';
+  // v1.6.13: feste Hoehe statt dynamischer max-height (Nutzerwunsch) -
+  // Panel soll immer die Standardgroesse zeigen (5 Favoriten + Mitglieder-
+  // Zeile sichtbar), lange Listen scrollen intern wie zuvor.
+  const BODY_HEIGHT = 330;
+  const VERSION = 'v1.6.13';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
