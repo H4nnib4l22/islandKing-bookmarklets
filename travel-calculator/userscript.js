@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.19
+// @version      1.6.20
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -683,8 +683,23 @@
   // (Nutzer-Beobachtung 2026-09-13: 1 von 2 Schlachtschiffen kam mit 76%
   // SCHADEN ins Dock). curHpPool minus die vollen Einheiten davor = Rest-HP
   // der angebrochenen letzten Einheit, 100% minus deren Anteil = Schaden%.
-  function dockDamagePercent(f) {
+  //
+  // 2026-09-15: EINZELSCHIFF-AUSNAHME, live gegen /api/combat/simulate
+  // verifiziert (>25 Faelle: 1 Schiff jeden Typs, 1-5 Runden, knapper wie
+  // klarer Sieg, immer dasselbe Ergebnis). Besteht eine Flottenseite aus
+  // GENAU 1 Schiff (unabhaengig vom Typ), liefert die echte API in JEDEM
+  // Fall 0% Dock-Schaden - nie einen angeschlagenen Zwischenzustand, nur
+  // "unversehrt ueberlebt" oder "komplett verloren". Unser kontinuierliches
+  // HP-Pool-Modell nimmt dagegen immer einen anteiligen Rest-Schaden an,
+  // was bei genau diesem (sehr haeufigen) Fall systematisch falsche
+  // Reparaturkosten vorhersagte (Nutzer-Report: Rechner 27-30% Schaden,
+  // echter Kampfbericht 0%). Mehrschiff-Flotten folgen einer komplexeren,
+  // noch nicht vollstaendig geklaerten Regel (siehe
+  // project_islandking_kampfrechner_overkill_no_returnfire.md in der
+  // Claude-Code-Memory) - dort bleibt die bisherige Naeherung bestehen.
+  function dockDamagePercent(f, totalBeforeCount) {
     if (!f || f.after <= 0) return null;
+    if (totalBeforeCount === 1) return null;
     const rest = f.curHpPool - (f.after - 1) * f.hp;
     const restPct = Math.round((rest / f.hp) * 100);
     return restPct < 100 ? 100 - restPct : null;
@@ -709,10 +724,11 @@
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
       + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
     const repairTotal = { wood: 0, stone: 0, iron: 0 };
+    const totalBeforeCount = before.reduce((s, u) => s + u.count, 0);
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
-      const dmgPct = dockDamagePercent(f);
+      const dmgPct = dockDamagePercent(f, totalBeforeCount);
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
         + '<td style="opacity:.75">' + (u.count - after) + '</td>'
