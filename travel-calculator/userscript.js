@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.18
+// @version      1.6.19
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -814,7 +814,15 @@
   // (repositionAll) erkannt statt per eigenem MutationObserver.
   // Schiffsnamen-Zeilen im Popup: <li><span>Name</span><span class="font-mono">...×N</span></li>,
   // "Name" matcht 1:1 (bis auf ß/ss) die Katalognamen in PIRATE_SHIPS_COMBAT.
-  function normalizeShipName(s) { return s.trim().replace(/ß/g, 'ss').toLowerCase(); }
+  // Spionageberichte listen Truppen im Plural ("Musketiere"), der Katalog
+  // kennt nur den Singular ("Musketier") — die drei abweichenden Formen
+  // (Schwertkämpfer/Ritter sind im Plural identisch) müssen vor dem Vergleich
+  // auf den Katalognamen zurückgeführt werden, sonst bleibt der Input leer.
+  const TROOP_PLURAL_ALIASES = { soldaten: 'soldat', musketiere: 'musketier', kanoniere: 'kanonier' };
+  function normalizeShipName(s) {
+    const n = s.trim().replace(/ß/g, 'ss').toLowerCase();
+    return TROOP_PLURAL_ALIASES[n] || n;
+  }
 
   function parseConvoyShips(panel) {
     const ships = [];
