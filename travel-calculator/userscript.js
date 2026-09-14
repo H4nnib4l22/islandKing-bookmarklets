@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.10
+// @version      1.6.11
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // @run-at       document-idle
 // @downloadURL  https://update.greasyfork.org/scripts/595510/Islandking%20Reisezeitenrechner.user.js
 // @updateURL    https://update.greasyfork.org/scripts/595510/Islandking%20Reisezeitenrechner.meta.js
@@ -44,6 +44,9 @@
  * v1.6.10: "Eigene Flotte laden" fragt jetzt erst, von welcher Insel
  * geladen werden soll (Dropdown erscheint nur bei mehr als einer Insel,
  * inkl. "Alle Inseln" als weiterhin verfuegbare Summen-Option).
+ * v1.6.11: 🔄-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
+ * Version auf Greasy Fork liegt (braucht @grant GM_xmlhttpRequest statt
+ * @grant none, siehe Kommentar bei ikbmWindow weiter unten).
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -71,17 +74,26 @@
   // welchem Script — reine Messung der aktuellen Bounding-Box.
   //
   // Seq-basiert statt "alle anderen derselben Seite": jedes Panel bekommt
-  // beim Erzeugen eine fortlaufende Nummer (window.__ikbmSeq, geteilt über
-  // ALLE Scripts hinweg, da @grant none -> gleiches window). Beim Stacken
-  // zaehlen nur Panels mit KLEINERER Seq (= frueher erzeugt), nie juengere.
-  // Ohne diese Regel wuerden zwei gleichseitige Panels, die BEIDE per
-  // Intervall repositionieren, sich gegenseitig beobachten und bei jedem
-  // Tick unbegrenzt nach unten aufschaukeln (A reagiert auf B's letzten
-  // Stand, B auf A's gerade aktualisierten — daher strikt einseitig: nur
+  // beim Erzeugen eine fortlaufende Nummer (ikbmWindow.__ikbmSeq, geteilt
+  // ueber ALLE Scripts hinweg). Beim Stacken zaehlen nur Panels mit
+  // KLEINERER Seq (= frueher erzeugt), nie juengere. Ohne diese Regel
+  // wuerden zwei gleichseitige Panels, die BEIDE per Intervall
+  // repositionieren, sich gegenseitig beobachten und bei jedem Tick
+  // unbegrenzt nach unten aufschaukeln (A reagiert auf B's letzten Stand,
+  // B auf A's gerade aktualisierten — daher strikt einseitig: nur
   // rueckwaerts in der Entstehungsreihenfolge schauen, nie vorwaerts).
+  //
+  // ikbmWindow statt direkt "window": seit dem Update-Check-Button braucht
+  // dieses Script @grant GM_xmlhttpRequest statt @grant none - Tampermonkey
+  // kann Scripts mit einem Grant in einer Sandbox laufen lassen, deren
+  // "window" NICHT mehr das echte Seiten-window ist. unsafeWindow ist immer
+  // das echte Seiten-window (identisch mit dem "window" der anderen, nach
+  // wie vor @grant-none Scripts) - ohne diesen Fallback wuerde das
+  // Panel-Stacking zwischen granted und ungranted Scripts auseinanderlaufen.
+  const ikbmWindow = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   function nextPanelSeq() {
-    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
-    return window.__ikbmSeq;
+    ikbmWindow.__ikbmSeq = (ikbmWindow.__ikbmSeq || 0) + 1;
+    return ikbmWindow.__ikbmSeq;
   }
   function computeStackTop(side, selfSeq) {
     const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
@@ -94,8 +106,51 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.10';
+  const VERSION = 'v1.6.11';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
+
+  // 🔄-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
+  // CSP von islandking.ch, die einen direkten fetch() auf update.greasyfork.org
+  // blockt - live verifiziert 2026-09-14) die @version im Greasy-Fork-
+  // Update-Feed gegen VERSION oben. Aendert NICHTS selbst - Tampermonkey
+  // aktualisiert ohnehin automatisch, das ist nur eine sichtbare Anzeige
+  // auf Nutzerwunsch statt auf den naechsten Auto-Check zu warten.
+  const UPDATE_META_URL = 'https://update.greasyfork.org/scripts/595510/Islandking%20Reisezeitenrechner.meta.js';
+  function checkForUpdate(iconEl) {
+    if (typeof GM_xmlhttpRequest === 'undefined') {
+      iconEl.textContent = '⚠️';
+      iconEl.title = 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).';
+      return;
+    }
+    iconEl.textContent = '⏳';
+    const localVersion = VERSION.replace(/^v/, '');
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: UPDATE_META_URL,
+      onload: (res) => {
+        const m = res.responseText.match(/@version\s+([\d.]+)/);
+        if (!m) {
+          iconEl.textContent = '⚠️';
+          iconEl.title = 'Version im Update-Feed nicht gefunden.';
+          return;
+        }
+        const remoteVersion = m[1];
+        if (remoteVersion === localVersion) {
+          iconEl.textContent = '✅';
+          iconEl.title = 'Aktuell (v' + localVersion + ').';
+        } else {
+          iconEl.textContent = '🆕';
+          iconEl.title = 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.';
+        }
+        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+      },
+      onerror: () => {
+        iconEl.textContent = '⚠️';
+        iconEl.title = 'Update-Check fehlgeschlagen (Netzwerkfehler).';
+        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+      },
+    });
+  }
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
     title = title + VERSION_HTML;
@@ -116,6 +171,7 @@
     panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
       + '<span style="display:flex;gap:10px;align-items:center">'
+      + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">🔄</span>'
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
       + '</span></div>'
@@ -124,9 +180,12 @@
 
     const header = panel.querySelector('[data-role="header"]');
     const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+    const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
     const sideToggle = panel.querySelector('[data-role="side-toggle"]');
     const closeBtn = panel.querySelector('[data-role="close"]');
     const body = panel.querySelector('[data-role="body"]');
+
+    updateCheckBtn.addEventListener('click', () => checkForUpdate(updateCheckBtn));
 
     collapseToggle.addEventListener('click', () => {
       const next = !body.hidden;

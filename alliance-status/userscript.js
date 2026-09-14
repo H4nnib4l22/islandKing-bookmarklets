@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.6
+// @version      1.6.7
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // @run-at       document-idle
 // @downloadURL  https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.user.js
 // @updateURL    https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.meta.js
@@ -54,6 +54,9 @@
  *   Eintraege daher ungetestet, generisch/tolerant gerendert (gleiches
  *   Muster wie outgoing beim Angriffe-Tab). Roter Punkt wie beim
  *   Angriffe-Tab bei neu hinzugekommenen Meldungen.
+ * v1.6.7: 🔄-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
+ * Version auf Greasy Fork liegt (braucht @grant GM_xmlhttpRequest statt
+ * @grant none, siehe Kommentar bei ikbmWindow weiter unten).
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -173,15 +176,24 @@
   // Userscripts: dockt je Seite unter das unterste bereits offene Panel
   // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
   // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
-  // (window.__ikbmSeq, geteilt ueber ALLE Scripts hinweg, da @grant none
-  // -> gleiches window). Beim Stacken zaehlen nur Panels mit KLEINERER
-  // Seq (= frueher erzeugt), nie juengere — sonst wuerden sich zwei
-  // gleichseitige, unabhaengig per Intervall pollende Panels gegenseitig
-  // beobachten und bei jedem Tick unbegrenzt nach unten aufschaukeln (A
-  // reagiert auf B's letzten Stand, B auf A's gerade aktualisierten).
+  // (ikbmWindow.__ikbmSeq, geteilt ueber ALLE Scripts hinweg). Beim
+  // Stacken zaehlen nur Panels mit KLEINERER Seq (= frueher erzeugt), nie
+  // juengere — sonst wuerden sich zwei gleichseitige, unabhaengig per
+  // Intervall pollende Panels gegenseitig beobachten und bei jedem Tick
+  // unbegrenzt nach unten aufschaukeln (A reagiert auf B's letzten Stand,
+  // B auf A's gerade aktualisierten).
+  //
+  // ikbmWindow statt direkt "window": seit dem Update-Check-Button braucht
+  // dieses Script @grant GM_xmlhttpRequest statt @grant none - Tampermonkey
+  // kann Scripts mit einem Grant in einer Sandbox laufen lassen, deren
+  // "window" NICHT mehr das echte Seiten-window ist. unsafeWindow ist immer
+  // das echte Seiten-window (identisch mit dem "window" der anderen, nach
+  // wie vor @grant-none Scripts) - ohne diesen Fallback wuerde das
+  // Panel-Stacking zwischen granted und ungranted Scripts auseinanderlaufen.
+  const ikbmWindow = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   function nextPanelSeq() {
-    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
-    return window.__ikbmSeq;
+    ikbmWindow.__ikbmSeq = (ikbmWindow.__ikbmSeq || 0) + 1;
+    return ikbmWindow.__ikbmSeq;
   }
   function computeStackTop(side, selfSeq) {
     const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
@@ -207,8 +219,51 @@
   // Header-Zeile (siehe applyHeight()).
   const PANEL_HEIGHT = 420;
   const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.6';
+  const VERSION = 'v1.6.7';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
+
+  // 🔄-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
+  // CSP von islandking.ch, die einen direkten fetch() auf update.greasyfork.org
+  // blockt) die @version im Greasy-Fork-Update-Feed gegen VERSION oben.
+  // Aendert NICHTS selbst - Tampermonkey aktualisiert ohnehin automatisch,
+  // das ist nur eine sichtbare Anzeige auf Nutzerwunsch statt auf den
+  // naechsten Auto-Check zu warten.
+  const UPDATE_META_URL = 'https://update.greasyfork.org/scripts/595506/Islandking%20Allianz%20Status.meta.js';
+  function checkForUpdate(iconEl) {
+    if (typeof GM_xmlhttpRequest === 'undefined') {
+      iconEl.textContent = '⚠️';
+      iconEl.title = 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).';
+      return;
+    }
+    iconEl.textContent = '⏳';
+    const localVersion = VERSION.replace(/^v/, '');
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: UPDATE_META_URL,
+      onload: (res) => {
+        const m = res.responseText.match(/@version\s+([\d.]+)/);
+        if (!m) {
+          iconEl.textContent = '⚠️';
+          iconEl.title = 'Version im Update-Feed nicht gefunden.';
+          return;
+        }
+        const remoteVersion = m[1];
+        if (remoteVersion === localVersion) {
+          iconEl.textContent = '✅';
+          iconEl.title = 'Aktuell (v' + localVersion + ').';
+        } else {
+          iconEl.textContent = '🆕';
+          iconEl.title = 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.';
+        }
+        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+      },
+      onerror: () => {
+        iconEl.textContent = '⚠️';
+        iconEl.title = 'Update-Check fehlgeschlagen (Netzwerkfehler).';
+        setTimeout(() => { iconEl.textContent = '🔄'; }, 8000);
+      },
+    });
+  }
 
   const panel = document.createElement('div');
   panel.id = PANEL_ID;
@@ -221,6 +276,7 @@
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
+    + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">🔄</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
@@ -240,9 +296,12 @@
 
   const header = panel.querySelector('[data-role="header"]');
   const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+  const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
   const sideToggle = panel.querySelector('[data-role="side-toggle"]');
   const closeBtn = panel.querySelector('[data-role="close"]');
   const panelBody = panel.querySelector('[data-role="body"]');
+
+  updateCheckBtn.addEventListener('click', () => checkForUpdate(updateCheckBtn));
 
   function applyHeight() { panel.style.height = panelBody.hidden ? 'auto' : PANEL_HEIGHT + 'px'; }
   applyHeight();
