@@ -79,7 +79,7 @@
   const side = readPref(SIDE_KEY, 'right');
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   const seq = nextPanelSeq();
-  const VERSION = 'v1.6.0';
+  const VERSION = 'v1.6.1';
   const TITLE = '🧭 Reisezeitenrechner <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -87,16 +87,21 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
+  // display:flex;flex-direction:column statt overflow:auto direkt auf dem
+  // Panel: Header bleibt so als eigenes Flex-Item fix sichtbar, nur der
+  // body (flex:1;overflow:auto weiter unten) scrollt (Nutzerwunsch, wie im
+  // Kampfrechner-Panel des Reisezeitenrechner-Userscripts uebernommen).
+  panel.style.cssText = 'position:fixed;width:380px;overflow:hidden;'
+    + 'display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+  panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body"' + (collapsed ? ' hidden' : '') + '>'
+    + '<div data-role="body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
     + '<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
     + '<div style="flex:1;min-width:140px">Start: <input id="iktc-start" placeholder="z. B. -40 | -60" style="width:100%;box-sizing:border-box"></div>'
     + '<div style="flex:1;min-width:140px">Ziel: <input id="iktc-ziel" placeholder="z. B. -10 | -40" style="width:100%;box-sizing:border-box"></div>'

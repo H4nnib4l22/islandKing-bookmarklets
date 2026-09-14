@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.0
-// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.1.1
+// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -32,9 +32,13 @@
  *   GET /api/islands/:id/overview fuer Schiffe+Soldaten (nur count>0).
  * - Auth: Bearer-Token aus localStorage.getItem('access_token') (gleiches
  *   Muster wie alle anderen Scripts in diesem Repo).
+ *
+ * v1.1.1: Panel-Header und die Spionage/Flotte-Tabs bleiben jetzt fixiert
+ * sichtbar, waehrend nur der Inhalt darunter scrollt (Nutzerwunsch, wie im
+ * Kampfrechner-Panel des Reisezeitenrechners uebernommen).
  */
 (function () {
-  const VERSION = 'v1.1.0';
+  const VERSION = 'v1.1.1';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -188,17 +192,23 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
+  // display:flex;flex-direction:column statt overflow:auto direkt auf dem
+  // Panel: Header UND die Spionage/Flotte-Tabs (position:sticky im body
+  // weiter unten) bleiben so fix sichtbar, nur der Inhalt darunter scrollt
+  // (Nutzerwunsch, wie im Kampfrechner-Panel des Reisezeitenrechners
+  // uebernommen).
+  panel.style.cssText = 'position:fixed;width:380px;overflow:hidden;'
+    + 'display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+  panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE_HTML + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body" id="iksr-body"' + (collapsed ? ' hidden' : '') + '>'
-    + '<nav style="display:flex;gap:4px;margin-bottom:10px">'
+    + '<div data-role="body" id="iksr-body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
+    + '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
     + '<button id="iksr-tab-spy" class="iksr-tabbtn active">Spionage</button>'
     + '<button id="iksr-tab-fleet" class="iksr-tabbtn">Flotte</button>'
     + '</nav>'

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.5
-// @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.2.6
+// @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile bleibt beim Scrollen fixiert
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -33,9 +33,12 @@
  * GM_openInTab automatisch Tampermonkeys eigene Update-Bestaetigungs-
  * seite (braucht zusaetzlich @grant GM_openInTab) - vorher zeigte er nur
  * an, dass ein Update existiert, ohne die Installation anzustossen.
+ * v1.2.6: Panel-Header (Titel+Icons) bleibt jetzt fixiert sichtbar,
+ * waehrend nur der Inhalt darunter scrollt (Nutzerwunsch, wie im
+ * Kampfrechner-Panel des Reisezeitenrechners uebernommen).
  */
 (function () {
-  const VERSION = 'v1.2.5';
+  const VERSION = 'v1.2.6';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -182,17 +185,22 @@
   panel.dataset.ikbmPanel = '1';
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
-  panel.style.cssText = 'position:fixed;width:380px;overflow:auto;'
+  // display:flex;flex-direction:column statt overflow:auto direkt auf dem
+  // Panel: Header bleibt so als eigenes Flex-Item fix sichtbar, nur der
+  // body (flex:1;overflow:auto weiter unten) scrollt (Nutzerwunsch, wie im
+  // Kampfrechner-Panel des Reisezeitenrechners uebernommen).
+  panel.style.cssText = 'position:fixed;width:380px;overflow:hidden;'
+    + 'display:flex;flex-direction:column;'
     + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
-  panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+  panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE_HTML + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
     + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body" id="ikrc-body"' + (collapsed ? ' hidden' : '') + '>Lade Inseln…</div>';
+    + '<div data-role="body" id="ikrc-body" style="flex:1;overflow:auto;min-height:0"' + (collapsed ? ' hidden' : '') + '>Lade Inseln…</div>';
   document.body.appendChild(panel);
 
   const header = panel.querySelector('[data-role="header"]');
