@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.9
+// @version      1.6.10
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -41,6 +41,9 @@
  * Schiffe+Soldaten aller eigenen Inseln ueber /api/islands/:id/overview,
  * aufsummiert). Ausserdem ein kleines "✕" rechts neben jedem Angreifer-
  * Feld (PvP UND Konvoi entern) zum Leeren einzelner Zeilen.
+ * v1.6.10: "Eigene Flotte laden" fragt jetzt erst, von welcher Insel
+ * geladen werden soll (Dropdown erscheint nur bei mehr als einer Insel,
+ * inkl. "Alle Inseln" als weiterhin verfuegbare Summen-Option).
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -91,7 +94,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.9';
+  const VERSION = 'v1.6.10';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
@@ -399,10 +402,18 @@
   }
 
   // "Eigene Flotte laden" — kleiner Button rechts neben "Angreifer" im
-  // PvP-Tab, holt Schiffe+Soldaten aller eigenen Inseln (siehe
-  // loadOwnFleet() weiter unten) und traegt sie in die Angreifer-Felder ein.
-  const ownFleetBtnHtml = '<button id="ikcc-own-fleet" style="font-size:11px;padding:2px 8px;border-radius:4px;'
-    + 'border:none;cursor:pointer;background:#1f6feb;color:#fff">🚢 Eigene Flotte laden</button>';
+  // PvP-Tab, holt Schiffe+Soldaten der eigenen Insel(n) (siehe
+  // loadOwnFleet() weiter unten) und traegt sie in die Angreifer-Felder
+  // ein. Das Dropdown daneben bleibt versteckt, solange nur eine Insel
+  // existiert (populateOwnFleetSelect() weiter unten) — Nutzerwunsch:
+  // bei mehreren Inseln erst abfragen, von welcher geladen wird, statt
+  // immer stumm alle zu summieren.
+  const ownFleetBtnHtml = '<span style="display:flex;gap:4px;align-items:center">'
+    + '<select id="ikcc-own-fleet-island" style="display:none;font-size:11px;padding:1px 4px;border-radius:4px;'
+    + 'background:#142338;color:#e6edf3;border:1px solid #24344a"></select>'
+    + '<button id="ikcc-own-fleet" style="font-size:11px;padding:2px 8px;border-radius:4px;'
+    + 'border:none;cursor:pointer;background:#1f6feb;color:#fff">🚢 Eigene Flotte laden</button>'
+    + '</span>';
 
   const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa', true, ownFleetBtnHtml)
     + unitSection('def', 'Verteidiger', '#f0d68a', false)
@@ -440,28 +451,57 @@
     if (input) input.value = 0;
   });
 
-  // "Eigene Flotte laden": Schiffe+Soldaten ALLER eigenen Inseln aufsummiert
-  // (kein Insel-Picker — der Nutzer wollte einen einzigen Button, die Summe
-  // entspricht "was ich insgesamt fuer einen Angriff mitnehmen koennte").
-  // Schema live verifiziert (2026-09-14) ueber /api/islands/:id/overview:
-  // ships[].name matcht 1:1 die SHIPS_COMBAT-Katalognamen, soldiers[].name
-  // dagegen NICHT ("Einfacher Soldat"/"Musketiere"/"Kanoniere" statt
-  // "Soldat"/"Musketier"/"Kanonier") — daher key-basierte Zuordnung fuer
-  // Truppen statt Namensvergleich.
+  // "Eigene Flotte laden": Schiffe+Soldaten einer Insel (oder aller, falls
+  // "Alle Inseln" gewaehlt). Schema live verifiziert (2026-09-14) ueber
+  // /api/islands/:id/overview: ships[].name matcht 1:1 die SHIPS_COMBAT-
+  // Katalognamen, soldiers[].name dagegen NICHT ("Einfacher Soldat"/
+  // "Musketiere"/"Kanoniere" statt "Soldat"/"Musketier"/"Kanonier") —
+  // daher key-basierte Zuordnung fuer Truppen statt Namensvergleich.
   const SOLDIER_KEY_TO_NAME = { so: 'Soldat', sk: 'Schwertkämpfer', mu: 'Musketier', ka: 'Kanonier', ri: 'Ritter' };
+
+  function ikccAuthHeaders() {
+    const token = (() => { try { return localStorage.getItem('access_token'); } catch (e) { return null; } })();
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  }
+
+  let ownIslandsCache = null;
+  async function loadOwnIslands() {
+    if (!ownIslandsCache) ownIslandsCache = await fetch('/api/islands', { headers: ikccAuthHeaders() }).then((r) => r.json());
+    return ownIslandsCache;
+  }
+
+  // Dropdown bleibt versteckt (und "Eigene Flotte laden" laedt direkt alle
+  // Inseln zusammen), solange nur eine Insel existiert — die Abfrage lohnt
+  // sich erst bei mehreren (Nutzerwunsch 2026-09-14: "sofern mehrere
+  // vorhanden" nachfragen statt immer stumm zu summieren).
+  async function populateOwnFleetSelect() {
+    const select = document.getElementById('ikcc-own-fleet-island');
+    try {
+      const islands = await loadOwnIslands();
+      if (islands.length <= 1) return;
+      select.innerHTML = '<option value="all">Alle Inseln</option>'
+        + islands.map((isl) => '<option value="' + isl.id + '">' + isl.name + ' (' + isl.coordinates.x + '|' + isl.coordinates.y + ')</option>').join('');
+      select.style.display = 'inline-block';
+    } catch (e) {
+      console.error('Insel-Liste laden fehlgeschlagen:', e);
+    }
+  }
+  populateOwnFleetSelect();
 
   async function loadOwnFleet() {
     const btn = document.getElementById('ikcc-own-fleet');
+    const select = document.getElementById('ikcc-own-fleet-island');
     const originalLabel = btn.textContent;
     btn.disabled = true;
     btn.textContent = '… lädt';
     try {
-      const token = (() => { try { return localStorage.getItem('access_token'); } catch (e) { return null; } })();
-      const headers = token ? { Authorization: 'Bearer ' + token } : {};
-      const islands = await fetch('/api/islands', { headers }).then((r) => r.json());
+      const islands = await loadOwnIslands();
+      const chosenId = select.style.display !== 'none' ? select.value : 'all';
+      const targetIslands = chosenId === 'all' ? islands : islands.filter((isl) => String(isl.id) === chosenId);
+      const headers = ikccAuthHeaders();
       const shipTotals = {};
       const soldierTotals = {};
-      for (const isl of islands) {
+      for (const isl of targetIslands) {
         const ov = await fetch('/api/islands/' + isl.id + '/overview', { headers }).then((r) => r.json());
         (ov.ships || []).forEach((s) => { shipTotals[s.name] = (shipTotals[s.name] || 0) + s.count; });
         (ov.soldiers || []).forEach((s) => { soldierTotals[s.key] = (soldierTotals[s.key] || 0) + s.count; });
