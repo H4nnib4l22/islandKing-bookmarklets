@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.16
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert
+// @version      1.6.17
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -68,6 +68,10 @@
  * PvP/Konvoi-entern-Tabs bleiben jetzt fixiert sichtbar, waehrend nur der
  * Inhalt darunter scrollt (Nutzerwunsch) - Panel selbst ist jetzt eine
  * Flexbox-Spalte statt direkt overflow:auto, body-Div traegt das Scrollen.
+ * v1.6.17: im Reisezeitenrechner bleiben jetzt auch Start/Ziel-Felder und
+ * die Bezugs-Schiffstempo-Auswahl fixiert (position:sticky-Wrapper, gleiches
+ * Muster wie die Kampfrechner-Tabs) - nur die Ergebnistabelle darunter
+ * scrollt.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -127,7 +131,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.16';
+  const VERSION = 'v1.6.17';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -288,7 +292,12 @@
     return null;
   }
 
-  const travelBodyHtml = '<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
+  // Start/Ziel + Bezugs-Schiffstempo in einem position:sticky-Wrapper
+  // (bezieht sich auf body, flex:1;overflow:auto in createPanel - gleiches
+  // Muster wie die Kampfrechner-Tabs) - Nutzerwunsch: erst darunter (die
+  // Ergebnistabelle) soll scrollen.
+  const travelBodyHtml = '<div style="position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
+    + '<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
     + '<div style="flex:1;min-width:140px">Start: <input id="iktc-start" placeholder="z. B. -40 | -60" style="width:100%;box-sizing:border-box"></div>'
     + '<div style="flex:1;min-width:140px">Ziel: <input id="iktc-ziel" placeholder="z. B. -10 | -40" style="width:100%;box-sizing:border-box"></div>'
     + '</div>'
@@ -300,6 +309,7 @@
     + '<option value="25">Koloni / altes Piratenschiff (Tempo 25/h)</option>'
     + '<option value="20" selected>grosses Frachtschiff (Tempo 20/h)</option>'
     + '</select></div>'
+    + '</div>'
     + '<div id="iktc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Start- und Zielkoordinaten eingeben.</p></div>';
 
   const travel = createPanel('iktc-panel', '🧭 Reisezeitenrechner', 380, 'right', travelBodyHtml);
