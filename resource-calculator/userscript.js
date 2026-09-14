@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.3
+// @version      1.2.4
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -25,9 +25,12 @@
  * @grant none, siehe Kommentar bei ikbmWindow weiter unten).
  * v1.2.3: der Button nutzt jetzt "↻" statt "🔄" - farbiges Emoji stach
  * neben den einfarbigen ⇄/✕-Icons zu stark heraus (Nutzer-Feedback).
+ * v1.2.4: auch die restlichen Icon-Zustaende (Pruefen/Aktuell/Update/
+ * Fehler) sind jetzt einfarbige Glyphen statt Mehrfarben-Emoji, gefaerbt
+ * mit den im Skript ohnehin verwendeten Signalfarben (gruen/gold/rot).
  */
 (function () {
-  const VERSION = 'v1.2.3';
+  const VERSION = 'v1.2.4';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -38,13 +41,22 @@
   // das ist nur eine sichtbare Anzeige auf Nutzerwunsch statt auf den
   // naechsten Auto-Check zu warten.
   const UPDATE_META_URL = 'https://update.greasyfork.org/scripts/595508/Islandking%20Ressourcenrechner.meta.js';
+  // Einfarbige Glyphen statt Mehrfarben-Emoji fuer JEDEN Icon-Zustand (nicht
+  // nur den Ruhezustand ↻) - Nutzerwunsch nach dem ↻-Fix. Farben sind die
+  // im ganzen Skript ohnehin schon verwendeten Signalfarben (gruen=ok,
+  // gold=Warnung/Update, rot=Fehler), kein neues Farbschema.
+  function setIconState(iconEl, glyph, color, title, autoReset) {
+    iconEl.textContent = glyph;
+    iconEl.style.color = color || '';
+    iconEl.title = title;
+    if (autoReset) setTimeout(() => { iconEl.textContent = '↻'; iconEl.style.color = ''; }, 8000);
+  }
   function checkForUpdate(iconEl) {
     if (typeof GM_xmlhttpRequest === 'undefined') {
-      iconEl.textContent = '⚠️';
-      iconEl.title = 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).';
+      setIconState(iconEl, '⚠', '#f87171', 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).');
       return;
     }
-    iconEl.textContent = '⏳';
+    setIconState(iconEl, '…', '', 'Prüfe…');
     const localVersion = VERSION.replace(/^v/, '');
     GM_xmlhttpRequest({
       method: 'GET',
@@ -52,24 +64,18 @@
       onload: (res) => {
         const m = res.responseText.match(/@version\s+([\d.]+)/);
         if (!m) {
-          iconEl.textContent = '⚠️';
-          iconEl.title = 'Version im Update-Feed nicht gefunden.';
+          setIconState(iconEl, '⚠', '#f87171', 'Version im Update-Feed nicht gefunden.', true);
           return;
         }
         const remoteVersion = m[1];
         if (remoteVersion === localVersion) {
-          iconEl.textContent = '✅';
-          iconEl.title = 'Aktuell (v' + localVersion + ').';
+          setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
         } else {
-          iconEl.textContent = '🆕';
-          iconEl.title = 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.';
+          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.', true);
         }
-        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
       },
       onerror: () => {
-        iconEl.textContent = '⚠️';
-        iconEl.title = 'Update-Check fehlgeschlagen (Netzwerkfehler).';
-        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
+        setIconState(iconEl, '⚠', '#f87171', 'Update-Check fehlgeschlagen (Netzwerkfehler).', true);
       },
     });
   }

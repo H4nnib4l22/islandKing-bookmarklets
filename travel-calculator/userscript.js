@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.12
+// @version      1.6.13
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -49,6 +49,9 @@
  * @grant none, siehe Kommentar bei ikbmWindow weiter unten).
  * v1.6.12: der Button nutzt jetzt "↻" statt "🔄" - farbiges Emoji stach
  * neben den einfarbigen ⇄/✕-Icons zu stark heraus (Nutzer-Feedback).
+ * v1.6.13: auch die restlichen Icon-Zustaende (Pruefen/Aktuell/Update/
+ * Fehler) sind jetzt einfarbige Glyphen statt Mehrfarben-Emoji, gefaerbt
+ * mit den im Skript ohnehin verwendeten Signalfarben (gruen/gold/rot).
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -108,7 +111,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.12';
+  const VERSION = 'v1.6.13';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -118,13 +121,22 @@
   // aktualisiert ohnehin automatisch, das ist nur eine sichtbare Anzeige
   // auf Nutzerwunsch statt auf den naechsten Auto-Check zu warten.
   const UPDATE_META_URL = 'https://update.greasyfork.org/scripts/595510/Islandking%20Reisezeitenrechner.meta.js';
+  // Einfarbige Glyphen statt Mehrfarben-Emoji fuer JEDEN Icon-Zustand (nicht
+  // nur den Ruhezustand ↻) - Nutzerwunsch nach dem ↻-Fix. Farben sind die
+  // im ganzen Skript ohnehin schon verwendeten Signalfarben (gruen=ok,
+  // gold=Warnung/Update, rot=Fehler), kein neues Farbschema.
+  function setIconState(iconEl, glyph, color, title, autoReset) {
+    iconEl.textContent = glyph;
+    iconEl.style.color = color || '';
+    iconEl.title = title;
+    if (autoReset) setTimeout(() => { iconEl.textContent = '↻'; iconEl.style.color = ''; }, 8000);
+  }
   function checkForUpdate(iconEl) {
     if (typeof GM_xmlhttpRequest === 'undefined') {
-      iconEl.textContent = '⚠️';
-      iconEl.title = 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).';
+      setIconState(iconEl, '⚠', '#f87171', 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).');
       return;
     }
-    iconEl.textContent = '⏳';
+    setIconState(iconEl, '…', '', 'Prüfe…');
     const localVersion = VERSION.replace(/^v/, '');
     GM_xmlhttpRequest({
       method: 'GET',
@@ -132,24 +144,18 @@
       onload: (res) => {
         const m = res.responseText.match(/@version\s+([\d.]+)/);
         if (!m) {
-          iconEl.textContent = '⚠️';
-          iconEl.title = 'Version im Update-Feed nicht gefunden.';
+          setIconState(iconEl, '⚠', '#f87171', 'Version im Update-Feed nicht gefunden.', true);
           return;
         }
         const remoteVersion = m[1];
         if (remoteVersion === localVersion) {
-          iconEl.textContent = '✅';
-          iconEl.title = 'Aktuell (v' + localVersion + ').';
+          setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
         } else {
-          iconEl.textContent = '🆕';
-          iconEl.title = 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.';
+          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — Tampermonkey aktualisiert automatisch.', true);
         }
-        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
       },
       onerror: () => {
-        iconEl.textContent = '⚠️';
-        iconEl.title = 'Update-Check fehlgeschlagen (Netzwerkfehler).';
-        setTimeout(() => { iconEl.textContent = '↻'; }, 8000);
+        setIconState(iconEl, '⚠', '#f87171', 'Update-Check fehlgeschlagen (Netzwerkfehler).', true);
       },
     });
   }
