@@ -920,6 +920,15 @@
   // bereits das Kuerzel selbst, nicht der volle Allianzname (verifiziert:
   // players[].alliance === alliances[].tag fuer dieselbe Allianz). Pro
   // Name gecacht (kein Allianzwechsel waehrend einer Sitzung zu erwarten).
+  // WICHTIG: der Cache haelt IMMER das Promise, nie den aufgeloesten String
+  // - jeder Aufrufer haengt unbedingt ein .then() an. Ein frueherer Bug hat
+  // den Cache-Eintrag nach dem Resolve mit dem reinen String ueberschrieben;
+  // da der Angreifername (meist der eigene) in praktisch jedem Bericht
+  // gleich ist, traf der naechste Treffer sofort .then() auf einen String
+  // -> TypeError -> die gesamte forEach-Schleife brach ab, bevor der
+  // Verteidiger drankam (live verifiziert 2026-09-14: Verteidiger-Kuerzel
+  // blieben nach dem ersten Tick durchgehend leer, Angreifer-Kuerzel
+  // teilweise auch, je nach Timing).
   const allianceTagCache = new Map();
   function fetchAllianceTag(name) {
     if (allianceTagCache.has(name)) return allianceTagCache.get(name);
@@ -927,9 +936,7 @@
       .then((r) => r.json())
       .then((data) => {
         const player = (data.players || []).find((pl) => pl.name === name);
-        const tag = player && player.alliance ? player.alliance : '';
-        allianceTagCache.set(name, tag);
-        return tag;
+        return player && player.alliance ? player.alliance : '';
       })
       .catch(() => '');
     allianceTagCache.set(name, p);
