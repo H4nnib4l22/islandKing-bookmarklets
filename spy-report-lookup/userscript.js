@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.1
-// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert
+// @version      1.1.2
+// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        GM_openInTab
 // @run-at       document-idle
 // @downloadURL  https://update.greasyfork.org/scripts/595653/Islandking%20Spy%20Report%20Lookup.user.js
 // @updateURL    https://update.greasyfork.org/scripts/595653/Islandking%20Spy%20Report%20Lookup.meta.js
@@ -36,9 +37,13 @@
  * v1.1.1: Panel-Header und die Spionage/Flotte-Tabs bleiben jetzt fixiert
  * sichtbar, waehrend nur der Inhalt darunter scrollt (Nutzerwunsch, wie im
  * Kampfrechner-Panel des Reisezeitenrechners uebernommen).
+ * v1.1.2: ↻-Button im Panel-Header prueft auf Knopfdruck, ob eine neue
+ * Version auf Greasy Fork liegt (braucht @grant GM_xmlhttpRequest statt
+ * @grant none, siehe Kommentar bei ikbmWindow weiter unten) - fehlte hier
+ * bisher als einzigem der vier Panels (Nutzer-Meldung 2026-09-14).
  */
 (function () {
-  const VERSION = 'v1.1.1';
+  const VERSION = 'v1.1.2';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -53,12 +58,21 @@
   // Userscripts: dockt je Seite unter das unterste bereits offene Panel
   // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
   // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
-  // (window.__ikbmSeq, geteilt ueber ALLE Scripts hinweg, da @grant none
-  // -> gleiches window). Beim Stacken zaehlen nur Panels mit KLEINERER
-  // Seq (= frueher erzeugt), nie juengere.
+  // (ikbmWindow.__ikbmSeq, geteilt ueber ALLE Scripts hinweg). Beim
+  // Stacken zaehlen nur Panels mit KLEINERER Seq (= frueher erzeugt), nie
+  // juengere.
+  //
+  // ikbmWindow statt direkt "window": seit dem Update-Check-Button braucht
+  // dieses Script @grant GM_xmlhttpRequest statt @grant none - Tampermonkey
+  // kann Scripts mit einem Grant in einer Sandbox laufen lassen, deren
+  // "window" NICHT mehr das echte Seiten-window ist. unsafeWindow ist immer
+  // das echte Seiten-window (identisch mit dem "window" der anderen, nach
+  // wie vor @grant-none Scripts) - ohne diesen Fallback wuerde das
+  // Panel-Stacking zwischen granted und ungranted Scripts auseinanderlaufen.
+  const ikbmWindow = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   function nextPanelSeq() {
-    window.__ikbmSeq = (window.__ikbmSeq || 0) + 1;
-    return window.__ikbmSeq;
+    ikbmWindow.__ikbmSeq = (ikbmWindow.__ikbmSeq || 0) + 1;
+    return ikbmWindow.__ikbmSeq;
   }
   function computeStackTop(side, selfSeq) {
     const others = Array.from(document.querySelectorAll('[data-ikbm-panel][data-ikbm-side="' + side + '"]'))
@@ -66,6 +80,58 @@
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
+  }
+
+  // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
+  // CSP von islandking.ch, die einen direkten fetch() auf update.greasyfork.org
+  // blockt) die @version im Greasy-Fork-Update-Feed gegen VERSION oben. Bei
+  // verfuegbarem Update oeffnet er zusaetzlich per GM_openInTab die
+  // @downloadURL - Tampermonkey erkennt diese .user.js-Navigation selbst
+  // und zeigt seine eigene Update-Bestaetigungsseite (identischer Ablauf
+  // wie ein Klick auf einen Greasy-Fork-Install-Link). GM_openInTab statt
+  // window.open(), weil window.open() nach einem asynchronen
+  // GM_xmlhttpRequest-Callback (kein direkter Klick-Kontext mehr) vom
+  // Popup-Blocker verschluckt werden kann.
+  const UPDATE_META_URL = 'https://update.greasyfork.org/scripts/595653/Islandking%20Spy%20Report%20Lookup.meta.js';
+  const UPDATE_DOWNLOAD_URL = 'https://update.greasyfork.org/scripts/595653/Islandking%20Spy%20Report%20Lookup.user.js';
+  // Einfarbige Glyphen statt Mehrfarben-Emoji fuer jeden Icon-Zustand,
+  // gleiche Signalfarben wie in den anderen drei Panels.
+  function setIconState(iconEl, glyph, color, title, autoReset) {
+    iconEl.textContent = glyph;
+    iconEl.style.color = color || '';
+    iconEl.title = title;
+    if (autoReset) setTimeout(() => { iconEl.textContent = '↻'; iconEl.style.color = ''; }, 8000);
+  }
+  function checkForUpdate(iconEl) {
+    if (typeof GM_xmlhttpRequest === 'undefined') {
+      setIconState(iconEl, '⚠', '#f87171', 'Update-Check nicht verfügbar (GM_xmlhttpRequest fehlt).');
+      return;
+    }
+    setIconState(iconEl, '…', '', 'Prüfe…');
+    const localVersion = VERSION.replace(/^v/, '');
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: UPDATE_META_URL,
+      onload: (res) => {
+        const m = res.responseText.match(/@version\s+([\d.]+)/);
+        if (!m) {
+          setIconState(iconEl, '⚠', '#f87171', 'Version im Update-Feed nicht gefunden.', true);
+          return;
+        }
+        const remoteVersion = m[1];
+        if (remoteVersion === localVersion) {
+          setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
+        } else if (typeof GM_openInTab !== 'undefined') {
+          setIconState(iconEl, '↑', '#f0d68a', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
+          GM_openInTab(UPDATE_DOWNLOAD_URL, { active: true });
+        } else {
+          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
+        }
+      },
+      onerror: () => {
+        setIconState(iconEl, '⚠', '#f87171', 'Update-Check fehlgeschlagen (Netzwerkfehler).', true);
+      },
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -204,6 +270,7 @@
   panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE_HTML + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
+    + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
@@ -228,9 +295,12 @@
 
   const header = panel.querySelector('[data-role="header"]');
   const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
+  const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
   const sideToggle = panel.querySelector('[data-role="side-toggle"]');
   const closeBtn = panel.querySelector('[data-role="close"]');
   const body = panel.querySelector('[data-role="body"]');
+
+  updateCheckBtn.addEventListener('click', () => checkForUpdate(updateCheckBtn));
 
   collapseToggle.addEventListener('click', () => {
     const next = !body.hidden;
