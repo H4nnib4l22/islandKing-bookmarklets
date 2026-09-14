@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.10
-// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar
+// @version      1.6.11
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Panel schrumpft auf den tatsächlichen Inhalt statt fixer Höhe
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -67,6 +67,11 @@
  * GM_openInTab automatisch Tampermonkeys eigene Update-Bestaetigungs-
  * seite (braucht zusaetzlich @grant GM_openInTab) - vorher zeigte er nur
  * an, dass ein Update existiert, ohne die Installation anzustossen.
+ * v1.6.11: die vier Tab-Bodies nutzen jetzt max-height statt einer festen
+ * Hoehe (Nutzerwunsch) - bei wenig Inhalt (z.B. nur 5 Favoriten +
+ * eingeklappte Mitgliederliste) hoert das Panel direkt danach auf statt
+ * leeren Platz bis zur alten Fixhoehe zu zeigen. Lange Listen scrollen wie
+ * bisher intern, sobald sie die Kappung erreichen.
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -220,16 +225,17 @@
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   const seq = nextPanelSeq();
 
-  // Feste Panel-Hoehe statt max-height:82vh - eine lange Mitgliederliste
-  // liess das Panel bis zu 82% des Viewports einnehmen und drueckte das
-  // naechste gestapelte Panel weit nach unten aus der Sichtbarkeit
-  // (Nutzer-Feedback). Nur die beiden Tab-Bodies scrollen jetzt intern
-  // (eigenes overflow:auto), Header/Tabs bleiben fix sichtbar. Gilt nur
-  // im ausgeklappten Zustand — eingeklappt schrumpft das Panel auf die
-  // Header-Zeile (siehe applyHeight()).
-  const PANEL_HEIGHT = 420;
-  const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.10';
+  // max-height statt fester Hoehe auf den Tab-Bodies (Nutzerwunsch
+  // 2026-09-14: bei nur 5 Favoriten + eingeklappter Mitgliederliste soll
+  // das Panel direkt danach aufhoeren, nicht bis zur alten Fixhoehe leeren
+  // Platz zeigen). BODY_HEIGHT bleibt als Kappung fuer lange Listen (siehe
+  // Kommentar-Historie: eine lange Mitgliederliste liess das Panel sonst
+  // bis zu 82% des Viewports einnehmen und drueckte das naechste gestapelte
+  // Panel aus der Sichtbarkeit) - kurze Inhalte schrumpfen jetzt einfach auf
+  // ihre natuerliche Hoehe. Panel selbst hat gar keine explizite Hoehe mehr
+  // gesetzt (Default auto) und folgt damit automatisch mit.
+  const BODY_HEIGHT = 330; // Kappung/Scroll-Grenze je Tab-Body, kein Fixmass mehr
+  const VERSION = 'v1.6.11';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -311,10 +317,10 @@
     + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
     + '<button id="ikas-tab-scout" class="ikas-tabbtn" style="display:none">Spähposten<span id="ikas-scout-dot" class="dot" hidden></span></button>'
     + '</nav>'
-    + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-attacks" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-scout" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px">Lade…</div>'
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
     + '</div>';
   document.body.appendChild(panel);
 
@@ -327,16 +333,12 @@
 
   updateCheckBtn.addEventListener('click', () => checkForUpdate(updateCheckBtn));
 
-  function applyHeight() { panel.style.height = panelBody.hidden ? 'auto' : PANEL_HEIGHT + 'px'; }
-  applyHeight();
-
   collapseToggle.addEventListener('click', () => {
     const next = !panelBody.hidden;
     panelBody.hidden = next;
     collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
-    applyHeight();
   });
 
   sideToggle.addEventListener('click', () => {

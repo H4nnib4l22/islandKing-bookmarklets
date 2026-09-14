@@ -185,16 +185,17 @@
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   const seq = nextPanelSeq();
 
-  // Feste Panel-Hoehe statt max-height:82vh - eine lange Mitgliederliste
-  // liess das Panel bis zu 82% des Viewports einnehmen und drueckte das
-  // naechste gestapelte Panel weit nach unten aus der Sichtbarkeit
-  // (Nutzer-Feedback). Nur die beiden Tab-Bodies scrollen jetzt intern
-  // (eigenes overflow:auto), Header/Tabs bleiben fix sichtbar. Gilt nur
-  // im ausgeklappten Zustand — eingeklappt schrumpft das Panel auf die
-  // Header-Zeile (siehe applyHeight()).
-  const PANEL_HEIGHT = 420;
-  const BODY_HEIGHT = 330; // PANEL_HEIGHT minus Header/Tabs/Padding
-  const VERSION = 'v1.6.6';
+  // max-height statt fester Hoehe auf den Tab-Bodies (Nutzerwunsch
+  // 2026-09-14: bei wenig Inhalt, z.B. nur 5 Favoriten + eingeklappter
+  // Mitgliederliste, soll das Panel direkt danach aufhoeren statt leeren
+  // Platz zu zeigen). BODY_HEIGHT bleibt als Kappung fuer lange Listen
+  // (Kommentar-Historie: eine lange Mitgliederliste liess das Panel sonst
+  // bis zu 82% des Viewports einnehmen und drueckte das naechste gestapelte
+  // Panel aus der Sichtbarkeit) - kurze Inhalte schrumpfen jetzt auf ihre
+  // natuerliche Hoehe, das Panel selbst hat keine explizite Hoehe mehr
+  // gesetzt (Default auto) und folgt automatisch mit.
+  const BODY_HEIGHT = 330; // Kappung/Scroll-Grenze je Tab-Body, kein Fixmass mehr
+  const VERSION = 'v1.6.7';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -218,10 +219,10 @@
     + '<button id="ikas-tab-attacks" class="ikas-tabbtn">Angriffe<span id="ikas-attacks-dot" class="dot" hidden></span></button>'
     + '<button id="ikas-tab-scout" class="ikas-tabbtn" style="display:none">Spähposten<span id="ikas-scout-dot" class="dot" hidden></span></button>'
     + '</nav>'
-    + '<div id="ikas-alliance" style="overflow:auto;height:' + BODY_HEIGHT + 'px">Lade…</div>'
-    + '<div id="ikas-tracked" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-attacks" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
-    + '<div id="ikas-scout" style="display:none;overflow:auto;height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-alliance" style="overflow:auto;max-height:' + BODY_HEIGHT + 'px">Lade…</div>'
+    + '<div id="ikas-tracked" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-attacks" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
+    + '<div id="ikas-scout" style="display:none;overflow:auto;max-height:' + BODY_HEIGHT + 'px"></div>'
     + '</div>';
   document.body.appendChild(panel);
 
@@ -231,16 +232,12 @@
   const closeBtn = panel.querySelector('[data-role="close"]');
   const panelBody = panel.querySelector('[data-role="body"]');
 
-  function applyHeight() { panel.style.height = panelBody.hidden ? 'auto' : PANEL_HEIGHT + 'px'; }
-  applyHeight();
-
   collapseToggle.addEventListener('click', () => {
     const next = !panelBody.hidden;
     panelBody.hidden = next;
     collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
-    applyHeight();
   });
 
   sideToggle.addEventListener('click', () => {
