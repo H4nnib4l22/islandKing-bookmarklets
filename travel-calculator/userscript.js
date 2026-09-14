@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.8
+// @version      1.6.9
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar
 // @author       Oscar
 // @license      MIT
@@ -37,6 +37,10 @@
  * Verteidigungsgebaeude/Schiffe/Soldaten des Berichts in den PvP-Tab
  * (Verteidiger-Seite). Erkennung ueber den einzigartigen "Erneut
  * spähen"-Buttontext, existiert nur auf Spionageberichten.
+ * v1.6.9: "Eigene Flotte laden"-Button neben "Angreifer" im PvP-Tab (holt
+ * Schiffe+Soldaten aller eigenen Inseln ueber /api/islands/:id/overview,
+ * aufsummiert). Ausserdem ein kleines "✕" rechts neben jedem Angreifer-
+ * Feld (PvP UND Konvoi entern) zum Leeren einzelner Zeilen.
  */
 (function () {
   const existing = document.getElementById('iktc-panel') || document.getElementById('ikcc-panel');
@@ -87,7 +91,7 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.8';
+  const VERSION = 'v1.6.9';
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   function createPanel(id, title, width, defaultSide, bodyHtml) {
@@ -346,10 +350,17 @@
     return { attFinal, defFinal, rounds, defDestroyed };
   }
 
-  function unitRow(prefix, u, extra) {
+  // clearable: kleines "✕" rechts neben dem Feld zum Leeren dieser einen
+  // Zeile - nur bei der eigenen Flotte sinnvoll (Angreifer in PvP UND
+  // Konvoi entern), nicht beim Verteidiger/Piraten-Konvoi (Gegner-Daten).
+  function unitRow(prefix, u, extra, clearable) {
+    const key = prefix + ':' + u.name;
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
       + '<span style="opacity:.85">' + u.name + (extra || '') + '</span>'
-      + '<input type="number" min="0" value="0" data-ikcc-unit="' + prefix + ':' + u.name + '" style="width:70px;box-sizing:border-box">'
+      + '<span style="display:flex;align-items:center;gap:4px">'
+      + '<input type="number" min="0" value="0" data-ikcc-unit="' + key + '" style="width:70px;box-sizing:border-box">'
+      + (clearable ? '<span data-ikcc-clear="' + key + '" title="Leeren" style="cursor:pointer;opacity:.5;font-size:12px">✕</span>' : '')
+      + '</span>'
       + '</div>';
   }
 
@@ -370,32 +381,39 @@
   // einheitlichen Panel-Breite (siehe unten) wuerden zwei Spalten mit
   // langen Einheitennamen ("mächtiges Piratenschiff") zu eng, gestapelt
   // nutzt jede Zeile die volle Breite.
-  function unitSection(prefix, title, color) {
-    return '<div style="font-weight:bold;color:' + color + ';margin:8px 0 4px">' + title + '</div>'
+  function unitSection(prefix, title, color, clearable, headerExtra) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;font-weight:bold;color:' + color + ';margin:8px 0 4px">'
+      + '<span>' + title + '</span>' + (headerExtra || '') + '</div>'
       + '<div style="font-size:11px;opacity:.6;margin:4px 0">Schiffe</div>'
-      + SHIPS_COMBAT.map((u) => unitRow(prefix, u)).join('')
+      + SHIPS_COMBAT.map((u) => unitRow(prefix, u, null, clearable)).join('')
       + '<div style="font-size:11px;opacity:.6;margin:4px 0">Truppen</div>'
-      + TROOPS_COMBAT.map((u) => unitRow(prefix, u)).join('');
+      + TROOPS_COMBAT.map((u) => unitRow(prefix, u, null, clearable)).join('');
   }
 
   // Angreifer/Verteidiger-Sektion nur mit Schiffen (keine Truppen) — fuer
   // den Konvoi-entern-Tab, der laut Wiki (Piraten-Konvoi liegt "vor Anker",
   // reine Schiffsflotte) keine Landtruppen/Gebaeude kennt.
-  function shipOnlySection(prefix, title, color, catalog) {
+  function shipOnlySection(prefix, title, color, catalog, clearable) {
     return '<div style="font-weight:bold;color:' + color + ';margin:8px 0 4px">' + title + '</div>'
-      + catalog.map((u) => unitRow(prefix, u)).join('');
+      + catalog.map((u) => unitRow(prefix, u, null, clearable)).join('');
   }
 
-  const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa')
-    + unitSection('def', 'Verteidiger', '#f0d68a')
+  // "Eigene Flotte laden" — kleiner Button rechts neben "Angreifer" im
+  // PvP-Tab, holt Schiffe+Soldaten aller eigenen Inseln (siehe
+  // loadOwnFleet() weiter unten) und traegt sie in die Angreifer-Felder ein.
+  const ownFleetBtnHtml = '<button id="ikcc-own-fleet" style="font-size:11px;padding:2px 8px;border-radius:4px;'
+    + 'border:none;cursor:pointer;background:#1f6feb;color:#fff">🚢 Eigene Flotte laden</button>';
+
+  const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa', true, ownFleetBtnHtml)
+    + unitSection('def', 'Verteidiger', '#f0d68a', false)
     + '<div style="font-size:11px;opacity:.6;margin:4px 0">Verteidigungsanlagen</div>'
     + BUILDINGS_COMBAT.map(buildingRow).join('')
     + '<button id="ikcc-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Kämpfen</button>'
     + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
 
   const convoyBodyHtml = '<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Nur Schiffe — Piraten-Konvois haben keine Landtruppen/Verteidigungsanlagen.</p>'
-    + shipOnlySection('catt', 'Angreifer', '#a78bfa', SHIPS_COMBAT)
-    + shipOnlySection('cdef', 'Piraten-Konvoi', '#f0d68a', PIRATE_SHIPS_COMBAT)
+    + shipOnlySection('catt', 'Angreifer', '#a78bfa', SHIPS_COMBAT, true)
+    + shipOnlySection('cdef', 'Piraten-Konvoi', '#f0d68a', PIRATE_SHIPS_COMBAT, false)
     + '<button id="ikcc-convoy-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
     + '<div id="ikcc-convoy-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Schiffe eingeben und auf "Entern" klicken.</p></div>';
 
@@ -411,6 +429,60 @@
   // Ressourcenrechner, Reisezeitenrechner, Kampfrechner) — passt so in
   // den verfuegbaren Freiraum, ohne dass eines breiter herausragt.
   const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 380, 'right', combatBodyHtml);
+
+  // Ein Klick auf ein "✕" (data-ikcc-clear, siehe unitRow) leert genau das
+  // dazugehoerige Feld — ein einziger delegierter Listener statt einem pro
+  // Zeile, da die Zeilen per innerHTML gebaut werden.
+  combat.panel.addEventListener('click', (e) => {
+    const clearBtn = e.target.closest('[data-ikcc-clear]');
+    if (!clearBtn) return;
+    const input = combat.panel.querySelector('[data-ikcc-unit="' + clearBtn.dataset.ikccClear + '"]');
+    if (input) input.value = 0;
+  });
+
+  // "Eigene Flotte laden": Schiffe+Soldaten ALLER eigenen Inseln aufsummiert
+  // (kein Insel-Picker — der Nutzer wollte einen einzigen Button, die Summe
+  // entspricht "was ich insgesamt fuer einen Angriff mitnehmen koennte").
+  // Schema live verifiziert (2026-09-14) ueber /api/islands/:id/overview:
+  // ships[].name matcht 1:1 die SHIPS_COMBAT-Katalognamen, soldiers[].name
+  // dagegen NICHT ("Einfacher Soldat"/"Musketiere"/"Kanoniere" statt
+  // "Soldat"/"Musketier"/"Kanonier") — daher key-basierte Zuordnung fuer
+  // Truppen statt Namensvergleich.
+  const SOLDIER_KEY_TO_NAME = { so: 'Soldat', sk: 'Schwertkämpfer', mu: 'Musketier', ka: 'Kanonier', ri: 'Ritter' };
+
+  async function loadOwnFleet() {
+    const btn = document.getElementById('ikcc-own-fleet');
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '… lädt';
+    try {
+      const token = (() => { try { return localStorage.getItem('access_token'); } catch (e) { return null; } })();
+      const headers = token ? { Authorization: 'Bearer ' + token } : {};
+      const islands = await fetch('/api/islands', { headers }).then((r) => r.json());
+      const shipTotals = {};
+      const soldierTotals = {};
+      for (const isl of islands) {
+        const ov = await fetch('/api/islands/' + isl.id + '/overview', { headers }).then((r) => r.json());
+        (ov.ships || []).forEach((s) => { shipTotals[s.name] = (shipTotals[s.name] || 0) + s.count; });
+        (ov.soldiers || []).forEach((s) => { soldierTotals[s.key] = (soldierTotals[s.key] || 0) + s.count; });
+      }
+      SHIPS_COMBAT.forEach((u) => {
+        const input = combat.panel.querySelector('[data-ikcc-unit="att:' + u.name + '"]');
+        if (input) input.value = shipTotals[u.name] || 0;
+      });
+      TROOPS_COMBAT.forEach((u) => {
+        const key = Object.keys(SOLDIER_KEY_TO_NAME).find((k) => SOLDIER_KEY_TO_NAME[k] === u.name);
+        const input = combat.panel.querySelector('[data-ikcc-unit="att:' + u.name + '"]');
+        if (input) input.value = key ? (soldierTotals[key] || 0) : 0;
+      });
+    } catch (e) {
+      console.error('Eigene Flotte laden fehlgeschlagen:', e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  }
+  document.getElementById('ikcc-own-fleet').addEventListener('click', loadOwnFleet);
 
   function collectUnits(prefix, catalog) {
     const units = [];
@@ -701,7 +773,10 @@
       const card = spahenBtn.closest('li') || container;
       const btn = document.createElement('button');
       btn.dataset.ikccSendSpy = '1';
-      btn.className = spahenBtn.className.replace(/\bbg-amber-600\b/, 'bg-blue-600').replace(/\bhover:bg-amber-700\b/, 'hover:bg-blue-700');
+      // Gleiches Blau wie die "Ausbau"-Buttons im Gebäude-Ausbau
+      // (bg-ocean-500/hover:bg-ocean-900, live verifiziert 2026-09-14) statt
+      // eines generischen Tailwind-Blaus, auf Nutzerwunsch.
+      btn.className = spahenBtn.className.replace(/\bbg-amber-600\b/, 'bg-ocean-500').replace(/\bhover:bg-amber-700\b/, 'hover:bg-ocean-900');
       btn.textContent = '⚔️ An Kampfrechner senden';
       btn.addEventListener('click', (e) => { e.preventDefault(); sendSpyDefenseToKampfrechner(card); });
       container.appendChild(btn);
