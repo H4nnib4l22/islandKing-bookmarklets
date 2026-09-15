@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.21
+// @version      1.6.22
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -141,7 +141,12 @@
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
-  const VERSION = 'v1.6.18';
+  // Aus GM_info gelesen statt hier zusaetzlich hartkodiert - eine zweite,
+  // von Hand gepflegte Versionskonstante lief dem @version-Header oben
+  // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
+  // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
+  // GM_info in einem Userscript-Manager mal fehlt.
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.22');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
