@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.23
+// @version      1.6.24
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -146,7 +146,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.23');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.24');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -749,16 +749,27 @@
       + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
     const repairTotal = { wood: 0, stone: 0, iron: 0 };
     const totalBeforeCount = before.reduce((s, u) => s + u.count, 0);
-    let totalAfterCount = 0;
+    const totalAfterCount = before.reduce((s, u) => {
+      const f = final.find((x) => x.name === u.name);
+      return s + (f ? f.after : 0);
+    }, 0);
+    const isWipeout = isAttacker && totalBeforeCount > 0 && totalAfterCount === 0;
+    const salvaged = isWipeout ? estimateSalvagedCount(totalBeforeCount) : 0;
+    // Bei genau einem Schiffstyp ist die salvaged-Zahl eindeutig diesem
+    // Typ zuzuordnen und kommt direkt in die Zeile statt in eine separate
+    // Zusammenfassung (Nutzer-Feedback 2026-09-15: "sollte da doch die 4
+    // stehen" - vorher stand in der Zeile immer "—", die Zahl nur darunter).
+    const showSalvagedInRow = isWipeout && before.length === 1;
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
-      totalAfterCount += after;
-      const dmgPct = isAttacker ? dockDamagePercent(f, totalBeforeCount) : null;
+      const dmgPct = isAttacker && !isWipeout ? dockDamagePercent(f, totalBeforeCount) : null;
+      const dockCell = showSalvagedInRow ? salvaged + ' Schiffe'
+        : (dmgPct !== null ? '1x ' + dmgPct + '%' : '—');
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
         + '<td style="opacity:.75">' + (u.count - after) + '</td>'
-        + '<td style="opacity:.75">' + (dmgPct !== null ? '1x ' + dmgPct + '%' : '—') + '</td></tr>';
+        + '<td style="opacity:.75">' + dockCell + '</td></tr>';
       const buildCost = SHIP_BUILD_COST[u.name];
       if (dmgPct !== null && buildCost) {
         repairTotal.wood += buildCost.wood * dmgPct / 100;
@@ -767,12 +778,12 @@
       }
     });
     html += '</table>';
-    if (isAttacker && totalBeforeCount > 0 && totalAfterCount === 0) {
-      const salvaged = estimateSalvagedCount(totalBeforeCount);
-      if (salvaged > 0) {
-        html += '<div style="font-size:11px;opacity:.75;margin-top:4px">🔧 davon ca. <b>' + salvaged
-          + '</b> von ' + totalBeforeCount + ' zerstörten Schiffen beschädigt statt versenkt (gehen ins Dock)</div>';
-      }
+    if (isWipeout && !showSalvagedInRow && salvaged > 0) {
+      html += '<div style="font-size:11px;opacity:.75;margin-top:4px">🔧 davon ca. <b>' + salvaged
+        + '</b> von ' + totalBeforeCount + ' zerstörten Schiffen beschädigt statt versenkt (gehen ins Dock) - genaue Typ-Zuordnung bei mehreren Schiffstypen nicht möglich</div>';
+    }
+    if (isWipeout) {
+      html += '<div style="font-size:11px;opacity:.6;margin-top:2px">Reparaturkosten für Dock-Schiffe hier nicht berechenbar (API liefert nur die Anzahl, keinen Schadens-%-Wert pro Schiff)</div>';
     }
     if (repairTotal.wood || repairTotal.stone || repairTotal.iron) {
       // Als eigene Tabelle statt Flex-Zeile: eine Tabellenzelle je Icon+Zahl
