@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.20
+// @version      1.6.21
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -719,7 +719,13 @@
   // (Nutzerangabe 2026-09-13: bei 76% Schaden fallen exakt 76% der
   // Baukosten als Reparaturkosten an). Nur fuer Schiffstypen mit bekanntem
   // SHIP_BUILD_COST - Truppen/Gebaeude/Piratenschiffe haben keins.
-  function resultTable(title, before, final) {
+  //
+  // Dock-Reparatur gibt es nur beim ANGREIFER, nicht beim Verteidiger
+  // (live gegenverglichen mit dem internen Kampfrechner 2026-09-15,
+  // Nutzer-Screenshot: "davon beschaedigt ins Dock" stand dort ausschliesslich
+  // in der Angreifer-Zeile, der Verteidiger hatte nur "Verluste" ohne
+  // Dock-Anteil - verlorene Verteidiger-Schiffe sind schlicht versenkt).
+  function resultTable(title, before, final, isAttacker) {
     let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + totalStats(before) + '</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
       + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
@@ -728,7 +734,7 @@
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
-      const dmgPct = dockDamagePercent(f, totalBeforeCount);
+      const dmgPct = isAttacker ? dockDamagePercent(f, totalBeforeCount) : null;
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
         + '<td style="opacity:.75">' + (u.count - after) + '</td>'
@@ -787,8 +793,8 @@
 
     let html = '<div style="font-weight:bold;color:' + o.color + ';margin-bottom:4px">' + o.text + '</div>'
       + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
-      + resultTable('Angreifer', attackerUnits, result.attFinal)
-      + resultTable('Verteidiger', defenderUnits, result.defFinal);
+      + resultTable('Angreifer', attackerUnits, result.attFinal, true)
+      + resultTable('Verteidiger', defenderUnits, result.defFinal, false);
     box.innerHTML = html;
   }
 
@@ -814,8 +820,8 @@
 
     let html = '<div style="font-weight:bold;color:' + o.color + ';margin-bottom:4px">' + o.text + '</div>'
       + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
-      + resultTable('Angreifer', attackerUnits, result.attFinal)
-      + resultTable('Piraten-Konvoi', defenderUnits, result.defFinal);
+      + resultTable('Angreifer', attackerUnits, result.attFinal, true)
+      + resultTable('Piraten-Konvoi', defenderUnits, result.defFinal, false);
     box.innerHTML = html;
   }
 
