@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.3
+// @version      1.1.4
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -47,7 +47,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.3';
+  const VERSION = 'v1.1.4';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -150,6 +150,14 @@
     try { return localStorage.getItem('access_token'); } catch { return null; }
   }
 
+  // Seit @grant GM_xmlhttpRequest (statt @grant none) laeuft dieses Script in
+  // Firefox/Tampermonkey in einer Sandbox, in der ein bares fetch() aus der
+  // Script-Sandbox kommt statt aus dem echten Seiten-window - relative URLs
+  // loesen dann nicht mehr gegen die Seiten-URL auf ("X is not a valid URL",
+  // Nutzer-Report 2026-09-15). unsafeWindow.fetch bindet zurueck ans echte
+  // window (gleiches Muster wie ikbmWindow weiter unten fuers Panel-Stacking).
+  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
   // Reaktiver Reload bei 401 (Lektion aus Allianz Status, 2026-09-13): ein
   // reiner Timer kann den tatsaechlichen Token-Ablauf verpassen. Cooldown
   // per localStorage verhindert eine Reload-Schleife, falls die API
@@ -169,7 +177,7 @@
     if (token) headers.Authorization = 'Bearer ' + token;
     let res;
     try {
-      res = await fetch(path, { credentials: 'include', headers });
+      res = await pageFetch(path, { credentials: 'include', headers });
     } catch (err) {
       throw new ApiError(0, 'Netzwerkfehler: ' + (err?.message || String(err)));
     }

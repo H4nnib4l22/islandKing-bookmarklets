@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.15
+// @version      1.6.16
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
 // @author       Oscar
 // @license      MIT
@@ -118,6 +118,15 @@
     try { return localStorage.getItem('access_token'); } catch { return null; }
   }
 
+  // Seit @grant GM_xmlhttpRequest (statt @grant none) laeuft dieses Script in
+  // Firefox/Tampermonkey in einer Sandbox, in der ein bares fetch() aus der
+  // Script-Sandbox kommt statt aus dem echten Seiten-window - relative URLs
+  // wie "/api/alliance" loesen dann nicht mehr gegen die Seiten-URL auf
+  // ("X is not a valid URL", Nutzer-Report 2026-09-15). unsafeWindow.fetch
+  // bindet zurueck ans echte window (gleiches Muster wie ikbmWindow weiter
+  // unten fuers Panel-Stacking).
+  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
   // Reaktiver Reload bei 401 statt nur periodisch (siehe reloadHandle weiter
   // unten): der 5-Min-Timer kann den tatsaechlichen Ablaufzeitpunkt des
   // Tokens verpassen. Erst nach mehreren FOLGE-401ern reloaden (1:1 das
@@ -128,17 +137,26 @@
   // Reload-Schleife aus (Nutzer-Report 2026-09-13). Cooldown weiterhin per
   // localStorage (nicht nur in-memory, da ein Reload den Skript-Zustand
   // ohnehin verwirft).
-  const LS_LAST_AUTH_RELOAD = 'ikas_lastAuthReload';
-  const AUTH_RELOAD_COOLDOWN_MS = 60000;
+  // Gemeinsamer Key mit ALLEN Panel-Scripts (aktuell alliance-status +
+  // resource-calculator, siehe deren periodischer reloadHandle weiter
+  // unten): verhindert, dass zwei gleichzeitig offene Panels sich
+  // gegenseitig ueberholen (ein Panel reloadet, Sekunden spaeter reloadet
+  // das andere erneut, bevor die Seite den Token frisch getauscht hat -
+  // Nutzer-Report 2026-09-15).
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
+  const RELOAD_COOLDOWN_MS = 60000;
+  function guardedReload() {
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
+    location.reload();
+  }
   const AUTO_RELOAD_AFTER_401 = 3;
   let consecutive401 = 0;
   function reloadOn401() {
     consecutive401 += 1;
     if (consecutive401 < AUTO_RELOAD_AFTER_401) return;
-    const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
-    if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) return;
-    localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
-    location.reload();
+    guardedReload();
   }
 
   async function apiFetch(path) {
@@ -147,7 +165,7 @@
     if (token) headers.Authorization = 'Bearer ' + token;
     let res;
     try {
-      res = await fetch(path, { credentials: 'include', headers });
+      res = await pageFetch(path, { credentials: 'include', headers });
     } catch (err) {
       throw new ApiError(0, 'Netzwerkfehler: ' + (err?.message || String(err)));
     }
@@ -246,7 +264,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.13';
+  const VERSION = 'v1.6.16';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -793,7 +811,7 @@
   // wird statt erst nach einem sichtbaren 401 zu reagieren. Anders als beim
   // Bookmarklet oeffnet sich das Panel danach automatisch wieder (Script
   // laeuft bei jedem Seitenladen erneut).
-  const reloadHandle = setInterval(() => location.reload(), 5 * 60 * 1000);
+  const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
   const prevCleanup = panel.__ikasCleanup;
   panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); };
 })();

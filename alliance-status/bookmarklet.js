@@ -81,17 +81,26 @@
   // Reload-Schleife aus (Nutzer-Report 2026-09-13). Cooldown weiterhin per
   // localStorage (nicht nur in-memory, da ein Reload den Skript-Zustand
   // ohnehin verwirft).
-  const LS_LAST_AUTH_RELOAD = 'ikas_lastAuthReload';
-  const AUTH_RELOAD_COOLDOWN_MS = 60000;
+  // Gemeinsamer Key mit ALLEN Panel-Scripts (aktuell alliance-status +
+  // resource-calculator, siehe deren periodischer reloadHandle weiter
+  // unten): verhindert, dass zwei gleichzeitig offene Panels sich
+  // gegenseitig ueberholen (ein Panel reloadet, Sekunden spaeter reloadet
+  // das andere erneut, bevor die Seite den Token frisch getauscht hat -
+  // Nutzer-Report 2026-09-15).
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
+  const RELOAD_COOLDOWN_MS = 60000;
+  function guardedReload() {
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
+    location.reload();
+  }
   const AUTO_RELOAD_AFTER_401 = 3;
   let consecutive401 = 0;
   function reloadOn401() {
     consecutive401 += 1;
     if (consecutive401 < AUTO_RELOAD_AFTER_401) return;
-    const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
-    if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) return;
-    localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
-    location.reload();
+    guardedReload();
   }
 
   async function apiFetch(path) {
@@ -195,7 +204,7 @@
   // + BODY_HEIGHT 330px -> 190px (Nutzerwunsch, siehe userscript.js).
   // v1.6.15: 190px war zu knapp - BODY_HEIGHT auf 300px angehoben.
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.15';
+  const VERSION = 'v1.6.16';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -681,7 +690,7 @@
   // wird statt erst nach einem sichtbaren 401 zu reagieren. Schliesst das
   // Panel (Bookmarklet injiziert sich nicht automatisch neu) - bewusst in
   // Kauf genommen.
-  const reloadHandle = setInterval(() => location.reload(), 5 * 60 * 1000);
+  const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
   const prevCleanup = panel.__ikasCleanup;
   panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); };
 })();

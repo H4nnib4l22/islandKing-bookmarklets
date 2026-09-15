@@ -9,7 +9,7 @@
  * Produktion/h dazu.
  */
 (function () {
-  const VERSION = 'v1.2.3';
+  const VERSION = 'v1.2.4';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -135,12 +135,26 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  // Alle 10 Min. Seite neu laden, damit ein bald ablaufender Token (~15 Min.
-  // Lebensdauer laut Notifier-Extension) proaktiv erneuert wird statt erst
-  // nach einem sichtbaren 401 (siehe const token oben - wird nur einmal
-  // beim Oeffnen gelesen, nie aufgefrischt). Schliesst das Panel (Bookmarklet
-  // injiziert sich nicht automatisch neu) - bewusst in Kauf genommen.
-  const reloadHandle = setInterval(() => location.reload(), 10 * 60 * 1000);
+  // Alle 5 Min. (an alliance-status angeglichen) Seite neu laden, damit ein
+  // bald ablaufender Token (~15 Min. Lebensdauer laut Notifier-Extension)
+  // proaktiv erneuert wird statt erst nach einem sichtbaren 401 (siehe
+  // const token oben - wird nur einmal beim Oeffnen gelesen, nie
+  // aufgefrischt). Schliesst das Panel (Bookmarklet injiziert sich nicht
+  // automatisch neu) - bewusst in Kauf genommen.
+  // Gemeinsamer Key mit ALLEN Panel-Scripts (aktuell auch alliance-status):
+  // verhindert, dass zwei gleichzeitig offene Panels sich gegenseitig
+  // ueberholen (ein Panel reloadet, Sekunden spaeter reloadet das andere
+  // erneut, bevor die Seite den Token frisch getauscht hat - Nutzer-Report
+  // 2026-09-15).
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
+  const RELOAD_COOLDOWN_MS = 60000;
+  function guardedReload() {
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
+    location.reload();
+  }
+  const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
   panel.__ikrcCleanup = () => { clearInterval(repositionHandle); clearInterval(reloadHandle); };
 
   closeBtn.onclick = () => { panel.__ikrcCleanup(); panel.remove(); };

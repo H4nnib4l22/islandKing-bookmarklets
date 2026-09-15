@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.24
+// @version      1.6.25
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -146,7 +146,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.24');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.25');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -598,9 +598,18 @@
     return token ? { Authorization: 'Bearer ' + token } : {};
   }
 
+  // Seit @grant GM_xmlhttpRequest (statt @grant none) laeuft dieses Script in
+  // Firefox/Tampermonkey in einer Sandbox, in der ein bares fetch() aus der
+  // Script-Sandbox kommt statt aus dem echten Seiten-window - relative URLs
+  // wie "/api/islands" loesen dann nicht mehr gegen die Seiten-URL auf
+  // ("X is not a valid URL", Nutzer-Report 2026-09-15). unsafeWindow.fetch
+  // bindet zurueck ans echte window (gleiches Muster wie ikbmWindow weiter
+  // unten fuers Panel-Stacking).
+  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
   let ownIslandsCache = null;
   async function loadOwnIslands() {
-    if (!ownIslandsCache) ownIslandsCache = await fetch('/api/islands', { headers: ikccAuthHeaders() }).then((r) => r.json());
+    if (!ownIslandsCache) ownIslandsCache = await pageFetch('/api/islands', { headers: ikccAuthHeaders() }).then((r) => r.json());
     return ownIslandsCache;
   }
 
@@ -636,7 +645,7 @@
       const shipTotals = {};
       const soldierTotals = {};
       for (const isl of targetIslands) {
-        const ov = await fetch('/api/islands/' + isl.id + '/overview', { headers }).then((r) => r.json());
+        const ov = await pageFetch('/api/islands/' + isl.id + '/overview', { headers }).then((r) => r.json());
         (ov.ships || []).forEach((s) => { shipTotals[s.name] = (shipTotals[s.name] || 0) + s.count; });
         (ov.soldiers || []).forEach((s) => { soldierTotals[s.key] = (soldierTotals[s.key] || 0) + s.count; });
       }
@@ -1039,7 +1048,7 @@
   const allianceTagCache = new Map();
   function fetchAllianceTag(name) {
     if (allianceTagCache.has(name)) return allianceTagCache.get(name);
-    const p = fetch('/api/rankings?q=' + encodeURIComponent(name), { headers: ikccAuthHeaders() })
+    const p = pageFetch('/api/rankings?q=' + encodeURIComponent(name), { headers: ikccAuthHeaders() })
       .then((r) => r.json())
       .then((data) => {
         const player = (data.players || []).find((pl) => pl.name === name);
