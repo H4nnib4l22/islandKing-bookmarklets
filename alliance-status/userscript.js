@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.16
+// @version      1.6.17
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
 // @author       Oscar
 // @license      MIT
@@ -125,7 +125,36 @@
   // ("X is not a valid URL", Nutzer-Report 2026-09-15). unsafeWindow.fetch
   // bindet zurueck ans echte window (gleiches Muster wie ikbmWindow weiter
   // unten fuers Panel-Stacking).
-  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+  const pageFetchRaw = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
+  // Persistenter Debug-Log fuer die 401/Logout-Diagnose (Ring-Buffer in
+  // localStorage, ueberlebt den Reload zu /login) - Nutzer-Report
+  // 2026-09-15 "User wieder ausgeloggt", Ursache noch ungeklaert. Geteilter
+  // Key mit ALLEN Panel-Scripts, damit sich Requests/Reloads mehrerer
+  // gleichzeitig offener Panels in einer gemeinsamen Zeitleiste korrelieren
+  // lassen. Auslesen per Konsole: JSON.parse(localStorage.ikbm_debugLog).
+  const LS_DEBUG_LOG = 'ikbm_debugLog';
+  const DEBUG_LOG_MAX = 200;
+  function logDebug(kind, detail) {
+    try {
+      const log = JSON.parse(localStorage.getItem(LS_DEBUG_LOG)) || [];
+      log.push({ t: new Date().toISOString(), panel: 'alliance-status', kind, detail });
+      while (log.length > DEBUG_LOG_MAX) log.shift();
+      localStorage.setItem(LS_DEBUG_LOG, JSON.stringify(log));
+    } catch { /* ignore */ }
+  }
+  logDebug('start', { url: location.href });
+  async function pageFetch(url, opts) {
+    let res;
+    try {
+      res = await pageFetchRaw(url, opts);
+    } catch (err) {
+      logDebug('fetch-error', { url, message: err?.message || String(err) });
+      throw err;
+    }
+    logDebug('fetch', { url, status: res.status });
+    return res;
+  }
 
   // Reaktiver Reload bei 401 statt nur periodisch (siehe reloadHandle weiter
   // unten): der 5-Min-Timer kann den tatsaechlichen Ablaufzeitpunkt des
@@ -147,7 +176,11 @@
   const RELOAD_COOLDOWN_MS = 60000;
   function guardedReload() {
     const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
-    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) {
+      logDebug('reload-skip-cooldown', { msRemaining: RELOAD_COOLDOWN_MS - (Date.now() - last) });
+      return;
+    }
+    logDebug('reload', {});
     localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
     location.reload();
   }
@@ -155,6 +188,7 @@
   let consecutive401 = 0;
   function reloadOn401() {
     consecutive401 += 1;
+    logDebug('401', { consecutive401 });
     if (consecutive401 < AUTO_RELOAD_AFTER_401) return;
     guardedReload();
   }
@@ -264,7 +298,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.16';
+  const VERSION = 'v1.6.17';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die

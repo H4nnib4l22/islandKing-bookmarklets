@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.4
+// @version      1.1.5
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -47,7 +47,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.4';
+  const VERSION = 'v1.1.5';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -156,7 +156,36 @@
   // loesen dann nicht mehr gegen die Seiten-URL auf ("X is not a valid URL",
   // Nutzer-Report 2026-09-15). unsafeWindow.fetch bindet zurueck ans echte
   // window (gleiches Muster wie ikbmWindow weiter unten fuers Panel-Stacking).
-  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+  const pageFetchRaw = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
+  // Persistenter Debug-Log fuer die 401/Logout-Diagnose (Ring-Buffer in
+  // localStorage, ueberlebt den Reload zu /login) - Nutzer-Report
+  // 2026-09-15 "User wieder ausgeloggt", Ursache noch ungeklaert. Geteilter
+  // Key mit ALLEN Panel-Scripts, damit sich Requests/Reloads mehrerer
+  // gleichzeitig offener Panels in einer gemeinsamen Zeitleiste korrelieren
+  // lassen. Auslesen per Konsole: JSON.parse(localStorage.ikbm_debugLog).
+  const LS_DEBUG_LOG = 'ikbm_debugLog';
+  const DEBUG_LOG_MAX = 200;
+  function logDebug(kind, detail) {
+    try {
+      const log = JSON.parse(localStorage.getItem(LS_DEBUG_LOG)) || [];
+      log.push({ t: new Date().toISOString(), panel: 'spy-report-lookup', kind, detail });
+      while (log.length > DEBUG_LOG_MAX) log.shift();
+      localStorage.setItem(LS_DEBUG_LOG, JSON.stringify(log));
+    } catch { /* ignore */ }
+  }
+  logDebug('start', { url: location.href });
+  async function pageFetch(url, opts) {
+    let res;
+    try {
+      res = await pageFetchRaw(url, opts);
+    } catch (err) {
+      logDebug('fetch-error', { url, message: err?.message || String(err) });
+      throw err;
+    }
+    logDebug('fetch', { url, status: res.status });
+    return res;
+  }
 
   // Reaktiver Reload bei 401 (Lektion aus Allianz Status, 2026-09-13): ein
   // reiner Timer kann den tatsaechlichen Token-Ablauf verpassen. Cooldown
@@ -166,7 +195,11 @@
   const AUTH_RELOAD_COOLDOWN_MS = 30000;
   function reloadOn401() {
     const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
-    if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) return;
+    if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) {
+      logDebug('reload-skip-cooldown', { msRemaining: AUTH_RELOAD_COOLDOWN_MS - (Date.now() - last) });
+      return;
+    }
+    logDebug('reload', {});
     localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
     location.reload();
   }

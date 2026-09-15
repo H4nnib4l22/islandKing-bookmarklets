@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.8
+// @version      1.2.9
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -42,7 +42,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.2.8';
+  const VERSION = 'v1.2.9';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -117,7 +117,36 @@
   // ("X is not a valid URL", Nutzer-Report 2026-09-15). unsafeWindow.fetch
   // bindet zurueck ans echte window (gleiches Muster wie ikbmWindow weiter
   // unten fuers Panel-Stacking).
-  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+  const pageFetchRaw = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
+  // Persistenter Debug-Log fuer die 401/Logout-Diagnose (Ring-Buffer in
+  // localStorage, ueberlebt den Reload zu /login) - Nutzer-Report
+  // 2026-09-15 "User wieder ausgeloggt", Ursache noch ungeklaert. Geteilter
+  // Key mit ALLEN Panel-Scripts, damit sich Requests/Reloads mehrerer
+  // gleichzeitig offener Panels in einer gemeinsamen Zeitleiste korrelieren
+  // lassen. Auslesen per Konsole: JSON.parse(localStorage.ikbm_debugLog).
+  const LS_DEBUG_LOG = 'ikbm_debugLog';
+  const DEBUG_LOG_MAX = 200;
+  function logDebug(kind, detail) {
+    try {
+      const log = JSON.parse(localStorage.getItem(LS_DEBUG_LOG)) || [];
+      log.push({ t: new Date().toISOString(), panel: 'resource-calculator', kind, detail });
+      while (log.length > DEBUG_LOG_MAX) log.shift();
+      localStorage.setItem(LS_DEBUG_LOG, JSON.stringify(log));
+    } catch { /* ignore */ }
+  }
+  logDebug('start', { url: location.href });
+  async function pageFetch(url, opts) {
+    let res;
+    try {
+      res = await pageFetchRaw(url, opts);
+    } catch (err) {
+      logDebug('fetch-error', { url, message: err?.message || String(err) });
+      throw err;
+    }
+    logDebug('fetch', { url, status: res.status });
+    return res;
+  }
 
   const authFetch = (url) => pageFetch(url, { headers: { Authorization: 'Bearer ' + token } }).then(r => {
     if (!r.ok) throw new Error('HTTP ' + r.status + ' bei ' + url);
@@ -266,7 +295,11 @@
   const RELOAD_COOLDOWN_MS = 60000;
   function guardedReload() {
     const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
-    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) {
+      logDebug('reload-skip-cooldown', { msRemaining: RELOAD_COOLDOWN_MS - (Date.now() - last) });
+      return;
+    }
+    logDebug('reload', {});
     localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
     location.reload();
   }

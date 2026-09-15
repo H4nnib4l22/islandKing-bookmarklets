@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.25
+// @version      1.6.26
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -146,7 +146,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.25');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.26');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -605,7 +605,36 @@
   // ("X is not a valid URL", Nutzer-Report 2026-09-15). unsafeWindow.fetch
   // bindet zurueck ans echte window (gleiches Muster wie ikbmWindow weiter
   // unten fuers Panel-Stacking).
-  const pageFetch = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+  const pageFetchRaw = (typeof unsafeWindow !== 'undefined') ? unsafeWindow.fetch.bind(unsafeWindow) : fetch;
+
+  // Persistenter Debug-Log fuer die 401/Logout-Diagnose (Ring-Buffer in
+  // localStorage, ueberlebt den Reload zu /login) - Nutzer-Report
+  // 2026-09-15 "User wieder ausgeloggt", Ursache noch ungeklaert. Geteilter
+  // Key mit ALLEN Panel-Scripts, damit sich Requests/Reloads mehrerer
+  // gleichzeitig offener Panels in einer gemeinsamen Zeitleiste korrelieren
+  // lassen. Auslesen per Konsole: JSON.parse(localStorage.ikbm_debugLog).
+  const LS_DEBUG_LOG = 'ikbm_debugLog';
+  const DEBUG_LOG_MAX = 200;
+  function logDebug(kind, detail) {
+    try {
+      const log = JSON.parse(localStorage.getItem(LS_DEBUG_LOG)) || [];
+      log.push({ t: new Date().toISOString(), panel: 'travel-calculator', kind, detail });
+      while (log.length > DEBUG_LOG_MAX) log.shift();
+      localStorage.setItem(LS_DEBUG_LOG, JSON.stringify(log));
+    } catch { /* ignore */ }
+  }
+  logDebug('start', { url: location.href });
+  async function pageFetch(url, opts) {
+    let res;
+    try {
+      res = await pageFetchRaw(url, opts);
+    } catch (err) {
+      logDebug('fetch-error', { url, message: err?.message || String(err) });
+      throw err;
+    }
+    logDebug('fetch', { url, status: res.status });
+    return res;
+  }
 
   let ownIslandsCache = null;
   async function loadOwnIslands() {
