@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.22
+// @version      1.6.23
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -146,7 +146,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.22');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.23');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -710,6 +710,19 @@
     return restPct < 100 ? 100 - restPct : null;
   }
 
+  // 2026-09-15: TOTALVERLUST-REGEL, live gegen /api/combat/simulate
+  // verifiziert (20 Faelle: Flottengroessen 1-50, 1-6 Runden, 1 und
+  // mehrere Schiffstypen gemischt, stark wechselnde Kraefteverhaeltnisse,
+  // Nutzer-Report bestaetigt exakt den n=10-Fall). Wird eine Flottenseite
+  // KOMPLETT vernichtet (0 Ueberlebende insgesamt), gilt fleet-weit exakt
+  // salvaged = floor(verlorene Schiffe * 2/5) - unabhaengig von Rundenzahl,
+  // Schiffstyp(en) oder Kraefteverhaeltnis, 20/20 Treffer. Das ist eine
+  // FLEET-WEITE Zahl (die API liefert dafuer keine Typ-Aufschluesselung),
+  // deshalb eigene Zusammenfassungszeile statt Pro-Zeilen-Prozentwert.
+  function estimateSalvagedCount(totalLost) {
+    return Math.floor(totalLost * 2 / 5);
+  }
+
   // ANG:/DEF: am Ende der Titelzeile - gleiche Emoji-Konvention wie die
   // Seite selbst (Schiffswerft-Karten: "Tempo … · ⚔️ 40 · 🛡 60 …", kein
   // Icon-Asset, reines Unicode - live verifiziert im DOM 2026-09-14).
@@ -736,9 +749,11 @@
       + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
     const repairTotal = { wood: 0, stone: 0, iron: 0 };
     const totalBeforeCount = before.reduce((s, u) => s + u.count, 0);
+    let totalAfterCount = 0;
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
+      totalAfterCount += after;
       const dmgPct = isAttacker ? dockDamagePercent(f, totalBeforeCount) : null;
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
@@ -752,6 +767,13 @@
       }
     });
     html += '</table>';
+    if (isAttacker && totalBeforeCount > 0 && totalAfterCount === 0) {
+      const salvaged = estimateSalvagedCount(totalBeforeCount);
+      if (salvaged > 0) {
+        html += '<div style="font-size:11px;opacity:.75;margin-top:4px">🔧 davon ca. <b>' + salvaged
+          + '</b> von ' + totalBeforeCount + ' zerstörten Schiffen beschädigt statt versenkt (gehen ins Dock)</div>';
+      }
+    }
     if (repairTotal.wood || repairTotal.stone || repairTotal.iron) {
       // Als eigene Tabelle statt Flex-Zeile: eine Tabellenzelle je Icon+Zahl
       // bricht nie mitten im Paar um, egal wie eng die Panel-Breite ist.
