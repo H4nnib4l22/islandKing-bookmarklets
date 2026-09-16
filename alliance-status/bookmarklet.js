@@ -37,10 +37,19 @@
  *   incoming:[...]} - eigener Spähposten-Fund, NICHT allianzweit wie der
  *   Angriffe-Tab. Tab bleibt unsichtbar, solange keine eigene Insel einen
  *   gebauten Spähposten hat (hasOutpost:true bei mind. einer Insel).
- *   incoming war in allen getesteten Faellen leer ([]) - Feldschema der
- *   Eintraege daher ungetestet, generisch/tolerant gerendert (gleiches
- *   Muster wie outgoing beim Angriffe-Tab). Roter Punkt wie beim
- *   Angriffe-Tab bei neu hinzugekommenen Meldungen.
+ *   Roter Punkt wie beim Angriffe-Tab bei neu hinzugekommenen Meldungen.
+ *   v1.6.18: incoming war bis dahin in allen getesteten Faellen leer ([]),
+ *   Feldschema daher nur generisch/tolerant geraten. Echtes Schema jetzt
+ *   aus IslandView-*.js (Vue-Komponente der Insel-Seite selbst, die
+ *   denselben Endpoint konsumiert) dekompiliert: {id, mission, attacker,
+ *   ships:[{count,type}], shipCount, attackPower, soldierCount, arriveAt}
+ *   - arriveAt im selben Format wie beim Angriffe-Tab (renderFleetBox).
+ *   mission ist einer von attack/spy/transport/colonize/board/station.
+ *   station ("Stationierung") sind eigene/verbuendete Truppen, KEIN
+ *   Angriff - die Site selbst faerbt den ganzen Abschnitt trotzdem pauschal
+ *   rot bei jedem incoming-Eintrag (Bug im Spiel-Frontend); unser Panel
+ *   faerbt station-Eintraege bewusst gruen (box.outgoing-Klasse,
+ *   Nutzerwunsch 2026-09-16), alles andere weiter rot (box.incoming).
  */
 (function () {
   const existing = document.getElementById('ikas-panel');
@@ -609,21 +618,30 @@
   // Angriffe: rein eigene Inseln, nicht allianzweit.
   // ---------------------------------------------------------------------
 
+  const SCOUT_MISSION_LABELS = { attack: 'Angriff', spy: 'Spionage', transport: 'Transport', colonize: 'Kolonie', board: 'Entern', station: 'Stationierung' };
+  const SCOUT_MISSION_ICONS = { attack: '⚔️', spy: '🕵️', transport: '🚚', colonize: '🏝️', board: '🪝', station: '⚓' };
+
   function renderScoutEntry(e) {
     const box = document.createElement('div');
-    box.className = 'box';
+    box.className = 'box ' + (e.mission === 'station' ? 'outgoing' : 'incoming');
     const info = document.createElement('div');
     info.className = 'info';
-    const label = e.player || e.name || e.owner || '?';
-    const coords = (e.x != null && e.y != null) ? ` (${e.x}|${e.y})` : '';
-    const metaParts = [];
-    if (e.islandName) metaParts.push(e.islandName);
-    if (e.count != null) metaParts.push(`${e.count} Flotte(n)`);
-    const eta = e.arriveAt ? formatCountdown(e.arriveAt) : null;
-    if (eta) metaParts.push('Ankunft in ' + eta);
-    info.innerHTML = `<div class="name">🔭 ${label}${coords}</div>`
-      + `<div class="meta">${metaParts.join(' · ') || 'Details unbekannt'}</div>`;
+    const icon = SCOUT_MISSION_ICONS[e.mission] || '🔭';
+    const label = SCOUT_MISSION_LABELS[e.mission] || e.mission || '?';
+    const counts = [];
+    if (e.attackPower != null) counts.push(`Angriffskraft ca. ${e.attackPower}`);
+    if (e.shipCount != null) {
+      const ships = (e.ships || []).map((s) => `${s.count}× ${s.type}`).join(', ');
+      counts.push(`🚢 ${e.shipCount}` + (ships ? ` (${ships})` : ''));
+    }
+    if (e.soldierCount) counts.push(`🪖 ${e.soldierCount} Soldaten`);
+    info.innerHTML = `<div class="name">${icon} ${label}${e.attacker ? ' von ' + e.attacker : ''}</div>`
+      + `<div class="meta">${counts.join(' · ') || 'Details unbekannt'}</div>`;
     box.appendChild(info);
+    const time = document.createElement('div');
+    time.className = 'time';
+    time.textContent = e.arriveAt ? formatCountdown(e.arriveAt) : '?';
+    box.appendChild(time);
     return box;
   }
 
