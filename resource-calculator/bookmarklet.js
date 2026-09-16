@@ -9,15 +9,41 @@
  * Produktion/h dazu.
  */
 (function () {
-  const VERSION = 'v1.2.4';
+  const VERSION = 'v1.3.0';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
   const token = localStorage.getItem('access_token');
   if (!token) { alert('Kein access_token gefunden — bist du auf islandking.ch eingeloggt?'); return; }
 
+  // Reaktiver Reload bei 401 (2026-09-16, ersetzt den frueheren blinden
+  // 5-Min-Timer, siehe userscript.js/alliance-status fuer dasselbe Muster).
+  // Erst nach mehreren FOLGE-401ern reloaden, ein einzelnes 401 direkt nach
+  // einem Reload ist oft nur transient. Gemeinsamer Cooldown-Key mit ALLEN
+  // Panel-Scripts, damit zwei gleichzeitig offene Panels sich nicht
+  // gegenseitig ueberholen.
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
+  const RELOAD_COOLDOWN_MS = 60000;
+  function guardedReload() {
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
+    location.reload();
+  }
+  const AUTO_RELOAD_AFTER_401 = 3;
+  let consecutive401 = 0;
+  function reloadOn401() {
+    consecutive401 += 1;
+    if (consecutive401 < AUTO_RELOAD_AFTER_401) return;
+    guardedReload();
+  }
+
   const authFetch = (url) => fetch(url, { headers: { Authorization: 'Bearer ' + token } }).then(r => {
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' bei ' + url);
+    if (!r.ok) {
+      if (r.status === 401) reloadOn401(); else consecutive401 = 0;
+      throw new Error('HTTP ' + r.status + ' bei ' + url);
+    }
+    consecutive401 = 0;
     return r.json();
   });
 
@@ -135,27 +161,7 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  // Alle 5 Min. (an alliance-status angeglichen) Seite neu laden, damit ein
-  // bald ablaufender Token (~15 Min. Lebensdauer laut Notifier-Extension)
-  // proaktiv erneuert wird statt erst nach einem sichtbaren 401 (siehe
-  // const token oben - wird nur einmal beim Oeffnen gelesen, nie
-  // aufgefrischt). Schliesst das Panel (Bookmarklet injiziert sich nicht
-  // automatisch neu) - bewusst in Kauf genommen.
-  // Gemeinsamer Key mit ALLEN Panel-Scripts (aktuell auch alliance-status):
-  // verhindert, dass zwei gleichzeitig offene Panels sich gegenseitig
-  // ueberholen (ein Panel reloadet, Sekunden spaeter reloadet das andere
-  // erneut, bevor die Seite den Token frisch getauscht hat - Nutzer-Report
-  // 2026-09-15).
-  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
-  const RELOAD_COOLDOWN_MS = 60000;
-  function guardedReload() {
-    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
-    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
-    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
-    location.reload();
-  }
-  const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
-  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); clearInterval(reloadHandle); };
+  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); };
 
   closeBtn.onclick = () => { panel.__ikrcCleanup(); panel.remove(); };
 

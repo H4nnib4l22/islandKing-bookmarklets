@@ -80,20 +80,19 @@
     try { return localStorage.getItem('access_token'); } catch { return null; }
   }
 
-  // Reaktiver Reload bei 401 statt nur periodisch (siehe reloadHandle weiter
-  // unten): der 5-Min-Timer kann den tatsaechlichen Ablaufzeitpunkt des
-  // Tokens verpassen. Erst nach mehreren FOLGE-401ern reloaden (1:1 das
-  // schon geloeste Muster aus content.js der eigenstaendigen Alliance-
-  // Status-Extension, Nutzer-Feedback 2026-09-08): direkt nach einem Reload
-  // hat die Seite den Token oft noch nicht neu getauscht, ein einzelnes
-  // 401 ist dann nur transient - sofortiges Reloaden darauf loeste eine
-  // Reload-Schleife aus (Nutzer-Report 2026-09-13). Cooldown weiterhin per
-  // localStorage (nicht nur in-memory, da ein Reload den Skript-Zustand
-  // ohnehin verwirft).
-  // Gemeinsamer Key mit ALLEN Panel-Scripts (aktuell alliance-status +
-  // resource-calculator, siehe deren periodischer reloadHandle weiter
-  // unten): verhindert, dass zwei gleichzeitig offene Panels sich
-  // gegenseitig ueberholen (ein Panel reloadet, Sekunden spaeter reloadet
+  // Reaktiver Reload bei 401 (bis 2026-09-16 lief zusaetzlich ein blinder
+  // 5-Min-Timer, der aber ohne echten Mehrwert war und als Verdaechtiger in
+  // der 401-Logout-Untersuchung entfernt wurde). Erst nach mehreren FOLGE-
+  // 401ern reloaden (1:1 das schon geloeste Muster aus content.js der
+  // eigenstaendigen Alliance-Status-Extension, Nutzer-Feedback 2026-09-08):
+  // direkt nach einem Reload hat die Seite den Token oft noch nicht neu
+  // getauscht, ein einzelnes 401 ist dann nur transient - sofortiges
+  // Reloaden darauf loeste eine Reload-Schleife aus (Nutzer-Report
+  // 2026-09-13). Cooldown weiterhin per localStorage (nicht nur in-memory,
+  // da ein Reload den Skript-Zustand ohnehin verwirft).
+  // Gemeinsamer Key mit ALLEN Panel-Scripts: verhindert, dass zwei
+  // gleichzeitig offene Panels sich gegenseitig ueberholen (ein Panel
+  // reloadet, Sekunden spaeter reloadet
   // das andere erneut, bevor die Seite den Token frisch getauscht hat -
   // Nutzer-Report 2026-09-15).
   const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
@@ -213,7 +212,7 @@
   // + BODY_HEIGHT 330px -> 190px (Nutzerwunsch, siehe userscript.js).
   // v1.6.15: 190px war zu knapp - BODY_HEIGHT auf 300px angehoben.
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.20';
+  const VERSION = 'v1.6.21';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -717,12 +716,13 @@
   const refreshHandle = setInterval(refreshAll, REFRESH_MS);
   refreshAll();
 
-  // Nutzerwunsch: alle 10 Min. Seite neu laden, damit ein bald ablaufender
-  // Token (~15 Min. Lebensdauer laut Notifier-Extension) proaktiv erneuert
-  // wird statt erst nach einem sichtbaren 401 zu reagieren. Schliesst das
-  // Panel (Bookmarklet injiziert sich nicht automatisch neu) - bewusst in
-  // Kauf genommen.
-  const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
+  // Periodischer Proaktiv-Reload (2026-09-16 entfernt, Nutzerwunsch):
+  // reloadete blind alle 5 Min. unabhaengig davon, ob der Token wirklich
+  // bald ablief, und war einer der Verdaechtigen in der offenen 401-
+  // Logout-Untersuchung (Reload-Race zwischen mehreren offenen Panels
+  // ueber denselben Cooldown-Key). Der reaktive Reload bei tatsaechlichem
+  // 401 (oben, reloadOn401/guardedReload) deckt den eigentlichen Zweck
+  // sauberer ab - reloadet nur, wenn ein Request wirklich fehlschlaegt.
 
   // Site-Patch (Nutzerwunsch 2026-09-16): die Insel-Seite selbst faerbt
   // ihre eigene 🔭-Spähposten-Kachel pauschal rot bei JEDEM incoming-
@@ -756,5 +756,5 @@
   patchOutpostSection();
 
   const prevCleanup = panel.__ikasCleanup;
-  panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); clearInterval(outpostHandle); };
+  panel.__ikasCleanup = () => { prevCleanup(); clearInterval(outpostHandle); };
 })();

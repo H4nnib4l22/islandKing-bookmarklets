@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.9
+// @version      1.3.0
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px
 // @author       Oscar
 // @license      MIT
@@ -42,7 +42,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.2.9';
+  const VERSION = 'v1.3.0';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -148,8 +148,43 @@
     return res;
   }
 
+  // Reaktiver Reload bei 401 (2026-09-16, ersetzt den frueheren blinden
+  // 5-Min-Timer, siehe alliance-status fuer dasselbe Muster - der
+  // periodische Timer war einer der Verdaechtigen in der offenen 401-
+  // Logout-Untersuchung, Reload-Race zwischen mehreren offenen Panels
+  // ueber denselben Cooldown-Key). Erst nach mehreren FOLGE-401ern
+  // reloaden, ein einzelnes 401 direkt nach einem Reload ist oft nur
+  // transient (Token noch nicht neu getauscht) - sofortiges Reloaden
+  // darauf loest sonst eine Reload-Schleife aus. Gemeinsamer Cooldown-Key
+  // mit ALLEN Panel-Scripts, damit zwei gleichzeitig offene Panels sich
+  // nicht gegenseitig ueberholen.
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
+  const RELOAD_COOLDOWN_MS = 60000;
+  function guardedReload() {
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
+    if (Date.now() - last < RELOAD_COOLDOWN_MS) {
+      logDebug('reload-skip-cooldown', { msRemaining: RELOAD_COOLDOWN_MS - (Date.now() - last) });
+      return;
+    }
+    logDebug('reload', {});
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
+    location.reload();
+  }
+  const AUTO_RELOAD_AFTER_401 = 3;
+  let consecutive401 = 0;
+  function reloadOn401() {
+    consecutive401 += 1;
+    logDebug('401', { consecutive401 });
+    if (consecutive401 < AUTO_RELOAD_AFTER_401) return;
+    guardedReload();
+  }
+
   const authFetch = (url) => pageFetch(url, { headers: { Authorization: 'Bearer ' + token } }).then(r => {
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' bei ' + url);
+    if (!r.ok) {
+      if (r.status === 401) reloadOn401(); else consecutive401 = 0;
+      throw new Error('HTTP ' + r.status + ' bei ' + url);
+    }
+    consecutive401 = 0;
     return r.json();
   });
 
@@ -280,31 +315,7 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  // Alle 5 Min. (an alliance-status angeglichen) Seite neu laden, damit ein
-  // bald ablaufender Token (~15 Min. Lebensdauer laut Notifier-Extension)
-  // proaktiv erneuert wird statt erst nach einem sichtbaren 401 (siehe
-  // const token oben - wird nur einmal beim Oeffnen gelesen, nie
-  // aufgefrischt). Script laeuft bei jedem Seitenladen automatisch erneut,
-  // Panel oeffnet sich danach von selbst.
-  // Gemeinsamer Key mit ALLEN Panel-Scripts (aktuell auch alliance-status):
-  // verhindert, dass zwei gleichzeitig offene Panels sich gegenseitig
-  // ueberholen (ein Panel reloadet, Sekunden spaeter reloadet das andere
-  // erneut, bevor die Seite den Token frisch getauscht hat - Nutzer-Report
-  // 2026-09-15).
-  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
-  const RELOAD_COOLDOWN_MS = 60000;
-  function guardedReload() {
-    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
-    if (Date.now() - last < RELOAD_COOLDOWN_MS) {
-      logDebug('reload-skip-cooldown', { msRemaining: RELOAD_COOLDOWN_MS - (Date.now() - last) });
-      return;
-    }
-    logDebug('reload', {});
-    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
-    location.reload();
-  }
-  const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
-  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); clearInterval(reloadHandle); };
+  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); };
 
   closeBtn.onclick = () => { panel.__ikrcCleanup(); panel.remove(); };
 
