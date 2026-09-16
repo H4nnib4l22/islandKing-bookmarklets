@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.19
+// @version      1.6.20
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
 // @author       Oscar
 // @license      MIT
@@ -307,7 +307,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.19';
+  const VERSION = 'v1.6.20';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -800,8 +800,21 @@
     return box;
   }
 
-  // Gleiches in-memory-Vergleichsmuster wie knownFleetKeys beim Angriffe-Tab.
-  let knownScoutKeys = null;
+  // Bug (Nutzer-Report 2026-09-16): roter Punkt kam nach JEDEM Reload
+  // erneut, auch fuer laengst gesehene Eintraege - Ursache war das rein
+  // in-memory-Muster hier ("gleich wie knownFleetKeys" stimmte, nur dass
+  // GENAU DAS beim Angriffe-Tab schon mal derselbe Bug war und dort per
+  // localStorage-Persistierung gefixt wurde, siehe LS_KNOWN_FLEETS oben -
+  // der Fix wurde nie hierher uebertragen). Jetzt 1:1 dasselbe Muster:
+  // Baseline in localStorage (LS_KNOWN_SCOUT), scoutKey() aus festen
+  // Feldern statt JSON.stringify(e) (robuster falls die API mal
+  // Feldreihenfolge/zusaetzliche volatile Felder liefert).
+  const LS_KNOWN_SCOUT = 'ikas_knownScoutKeys';
+  let knownScoutKeys = (() => {
+    const arr = loadJson(LS_KNOWN_SCOUT, null);
+    return Array.isArray(arr) ? new Set(arr) : null;
+  })();
+  function scoutKey(islandId, e) { return [islandId, e.id, e.mission, e.attacker, e.arriveAt].join('|'); }
 
   async function renderScout() {
     const body = document.getElementById('ikas-scout');
@@ -826,10 +839,11 @@
 
     const currentKeys = new Set();
     withOutpost.forEach((r) => {
-      (r.d.incoming || []).forEach((e) => currentKeys.add(r.isl.id + '|' + JSON.stringify(e)));
+      (r.d.incoming || []).forEach((e) => currentKeys.add(scoutKey(r.isl.id, e)));
     });
     const hasNew = knownScoutKeys && [...currentKeys].some((k) => !knownScoutKeys.has(k));
     knownScoutKeys = currentKeys;
+    saveJson(LS_KNOWN_SCOUT, [...currentKeys]);
     if (hasNew && activeTabName !== 'scout') document.getElementById('ikas-scout-dot').hidden = false;
 
     body.innerHTML = '';
