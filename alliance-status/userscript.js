@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.18
+// @version      1.6.19
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
 // @author       Oscar
 // @license      MIT
@@ -307,7 +307,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.18';
+  const VERSION = 'v1.6.19';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -864,6 +864,38 @@
   // Bookmarklet oeffnet sich das Panel danach automatisch wieder (Script
   // laeuft bei jedem Seitenladen erneut).
   const reloadHandle = setInterval(guardedReload, 5 * 60 * 1000);
+
+  // Site-Patch (Nutzerwunsch 2026-09-16): die Insel-Seite selbst faerbt
+  // ihre eigene 🔭-Spähposten-Kachel pauschal rot bei JEDEM incoming-
+  // Eintrag, auch bei einer reinen Stationierung (eigene/verbuendete
+  // Truppen, kein Angriff) - Bug im Spiel-Frontend, siehe renderScoutEntry
+  // weiter oben. Live-DOM verifiziert: <section class="... border-red-300
+  // bg-red-50"><p>🔭 Spähposten</p><ul><li><span class="... text-red-700">
+  // ⚓ Stationierung</span>...</li></ul></section>, Missionslabel je <li>
+  // im ERSTEN <span>. Faerbt nur um (eigene Klasse + !important gegen die
+  // Tailwind-Utility-Klassen des Spiels), aendert deren Klassen nicht -
+  // bleibt stabil, falls sich Tailwind-Klassennamen dort mal aendern.
+  // ponytail: Polling statt MutationObserver (Vue rendert den Abschnitt
+  // oefter neu als noetig zu beobachten waere) - alle 2s reicht, kein
+  // spuerbarer Unterschied zur sofortigen Reaktion.
+  if (!document.getElementById('ikbm-outpost-style')) {
+    const outpostStyle = document.createElement('style');
+    outpostStyle.id = 'ikbm-outpost-style';
+    outpostStyle.textContent = '.ikbm-outpost-safe{border-color:#2a7a44 !important;background-color:#123a1e !important}'
+      + '.ikbm-outpost-safe .text-red-700{color:#9fe0c0 !important}';
+    document.head.appendChild(outpostStyle);
+  }
+  function patchOutpostSection() {
+    const heading = [...document.querySelectorAll('p')].find((p) => p.textContent.trim() === '🔭 Spähposten');
+    const section = heading?.closest('section');
+    if (!section) return;
+    const missions = [...section.querySelectorAll('li')].map((li) => li.querySelector('span')?.textContent.trim());
+    const allStation = missions.length > 0 && missions.every((m) => m === '⚓ Stationierung');
+    section.classList.toggle('ikbm-outpost-safe', allStation);
+  }
+  const outpostHandle = setInterval(patchOutpostSection, 2000);
+  patchOutpostSection();
+
   const prevCleanup = panel.__ikasCleanup;
-  panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); };
+  panel.__ikasCleanup = () => { prevCleanup(); clearInterval(reloadHandle); clearInterval(outpostHandle); };
 })();
