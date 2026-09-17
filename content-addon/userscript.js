@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.4.2
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000) und im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen).
+// @version      1.5.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen) und Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -128,6 +128,7 @@
     tickBarracksQuickAdd();
     tickMarketQuickAdd();
     tickHarborQuickFill();
+    tickDashboardLevels();
   }
 
   // -------------------------------------------------------------------
@@ -319,6 +320,49 @@
     const entries = findHarborResourceEntries(card);
     if (entries.length < 2) return;
     ensureHarborFillButtons(card, entries);
+  }
+
+  // -------------------------------------------------------------------
+  // Dashboard "Meine Inseln" — Stufenanzeige (Feature 5). islandking.ch/
+  // zeigt je Insel-Kachel eine Bauliste ("🏗️ Haupthaus · 1h 36m"), aber
+  // nur den Gebaeudenamen ohne Level. /api/islands/<id>/overview (Bearer-
+  // Token aus localStorage.access_token, verifiziert live per Claude-in-
+  // Chrome) liefert unter buildQueueItems[].targetLevel das Ziel-Level je
+  // Bau-Eintrag; aktuelles Level ist targetLevel-1 (gegen buildings[].level
+  // desselben Response verifiziert). Einziges <ul class="grid"> der Seite,
+  // daher kein Heading-Anker noetig.
+  // -------------------------------------------------------------------
+
+  const dashboardLevelCache = {}; // islandId -> {expires, promise<Map<name, targetLevel>>}
+
+  function fetchIslandLevels(islandId) {
+    const cached = dashboardLevelCache[islandId];
+    if (cached && cached.expires > Date.now()) return cached.promise;
+    const token = localStorage.getItem('access_token');
+    const promise = fetch('/api/islands/' + islandId + '/overview', { headers: { Authorization: 'Bearer ' + token } })
+      .then((r) => r.json())
+      .then((data) => new Map((data.buildQueueItems || []).map((b) => [b.buildingName, b.targetLevel])))
+      .catch(() => new Map());
+    dashboardLevelCache[islandId] = { expires: Date.now() + 10000, promise };
+    return promise;
+  }
+
+  function tickDashboardLevels() {
+    if (location.pathname !== '/') return;
+    document.querySelectorAll('ul.grid > li').forEach((li) => {
+      const link = li.querySelector('a[href^="/island/"]');
+      if (!link) return;
+      const islandId = link.getAttribute('href').split('/')[2];
+      li.querySelectorAll('div.border-t span.text-gray-500').forEach((nameSpan) => {
+        const name = nameSpan.textContent.replace(/^\S+\s*/, '').trim();
+        fetchIslandLevels(islandId).then((levels) => {
+          const target = levels.get(name);
+          if (target === undefined || nameSpan.dataset.ikbaLevelFor === name + ':' + target) return;
+          nameSpan.dataset.ikbaLevelFor = name + ':' + target;
+          nameSpan.textContent = nameSpan.textContent.replace(/\s*\(Stufe.*\)$/, '') + ' (Stufe ' + (target - 1) + ' → ' + target + ')';
+        });
+      });
+    });
   }
 
   tick();
