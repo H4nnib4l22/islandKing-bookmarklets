@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.23
-// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
+// @version      1.6.24
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar (Einklappen jetzt zuverlässig, alter CSS-Konflikt behoben), Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -364,7 +364,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.23';
+  const VERSION = 'v1.6.24';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -443,7 +443,15 @@
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body" style="display:flex;flex-direction:column;flex:1;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
+    // Nutzer-Report 2026-09-18 (echter Alt-Bug, nicht durch spaetere
+    // Aenderungen verursacht): "hidden" alleine reicht hier NICHT - dieses
+    // Div setzt sein eigenes display:flex inline (fuer die Tab-Nav+Content-
+    // Spalte), und Inline-Styles gewinnen gegen die Browser-Standardregel
+    // "[hidden]{display:none}". Reisezeitenrechner/Kampfrechner betrifft das
+    // nicht, weil deren body-Div kein eigenes display inline setzt. Fix:
+    // display explizit mitfuehren statt sich auf "hidden" allein zu
+    // verlassen (siehe collapseToggle-Klick weiter unten).
+    + '<div data-role="body" style="display:' + (collapsed ? 'none' : 'flex') + ';flex-direction:column;flex:1;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;flex:none">'
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
@@ -469,6 +477,7 @@
   collapseToggle.addEventListener('click', () => {
     const next = !panelBody.hidden;
     panelBody.hidden = next;
+    panelBody.style.display = next ? 'none' : 'flex';
     collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');

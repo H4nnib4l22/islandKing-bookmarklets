@@ -258,7 +258,7 @@
   // + BODY_HEIGHT 330px -> 190px (Nutzerwunsch, siehe userscript.js).
   // v1.6.15: 190px war zu knapp - BODY_HEIGHT auf 300px angehoben.
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.23';
+  const VERSION = 'v1.6.24';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -279,7 +279,11 @@
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
-    + '<div data-role="body" style="display:flex;flex-direction:column;flex:1;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
+    // Nutzer-Report 2026-09-18 (echter Alt-Bug): "hidden" alleine reicht
+    // hier nicht, weil dieses Div sein eigenes display:flex inline setzt -
+    // Inline-Styles gewinnen gegen die Browser-Standardregel
+    // "[hidden]{display:none}". Fix: display explizit mitfuehren.
+    + '<div data-role="body" style="display:' + (collapsed ? 'none' : 'flex') + ';flex-direction:column;flex:1;min-height:0"' + (collapsed ? ' hidden' : '') + '>'
     + '<nav style="display:flex;gap:4px;margin-bottom:10px;flex:none">'
     + '<button id="ikas-tab-alliance" class="ikas-tabbtn">Allianz</button>'
     + '<button id="ikas-tab-tracked" class="ikas-tabbtn">Verfolgt</button>'
@@ -302,6 +306,7 @@
   collapseToggle.addEventListener('click', () => {
     const next = !panelBody.hidden;
     panelBody.hidden = next;
+    panelBody.style.display = next ? 'none' : 'flex';
     collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
