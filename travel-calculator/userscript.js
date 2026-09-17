@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.27
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, Eingabefelder im Kampfrechner auch bei Website-Weißmodus sichtbar
+// @version      1.6.28
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -138,6 +138,30 @@
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
+  // Live an den Hell-/Dunkelmodus der Seite gekoppelt: islandking.ch
+  // schaltet per Tailwind-Konvention die Klasse "dark" auf <html> um (kein
+  // data-theme-Attribut - live verifiziert 2026-09-17: class="dark" im
+  // Dunkelmodus, Klasse fehlt im Weissmodus). CSS-Variablen statt die
+  // Panels bei jedem Themawechsel neu zu bauen: sie vererben sich an alle
+  // Kind-Elemente (auch die per innerHTML gebauten Inputs/Buttons) und
+  // aktualisieren sich live, sobald applyIkbmTheme() sie am Panel-Root
+  // setzt - kein Refresh der einzelnen Elemente noetig.
+  const IKBM_THEMES = {
+    dark: { bg: '#0f1b2b', text: '#e6edf3', border: '#24344a', field: '#142338', gold: '#f0d68a' },
+    light: { bg: '#f4f7fb', text: '#1a2333', border: '#c7d2e0', field: '#ffffff', gold: '#92700c' },
+  };
+  function ikbmCurrentTheme() {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  }
+  function applyIkbmTheme(panel) {
+    const t = IKBM_THEMES[ikbmCurrentTheme()];
+    panel.style.setProperty('--ikbm-bg', t.bg);
+    panel.style.setProperty('--ikbm-text', t.text);
+    panel.style.setProperty('--ikbm-border', t.border);
+    panel.style.setProperty('--ikbm-field', t.field);
+    panel.style.setProperty('--ikbm-gold', t.gold);
+  }
+
   // Baut ein ein-/ausklappbares Overlay-Panel mit Seiten-Umschalter. Klapp-
   // und Seitenzustand landen in localStorage (Schluessel je Panel-id), damit
   // sie einen Seitenwechsel/Reload ueberleben.
@@ -146,7 +170,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.27');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.28');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -194,10 +218,10 @@
         if (remoteVersion === localVersion) {
           setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
         } else if (typeof GM_openInTab !== 'undefined') {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
+          setIconState(iconEl, '↑', 'var(--ikbm-gold)', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
           GM_openInTab(UPDATE_DOWNLOAD_URL, { active: true });
         } else {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
+          setIconState(iconEl, '↑', 'var(--ikbm-gold)', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
         }
       },
       onerror: () => {
@@ -232,8 +256,9 @@
     const widthCss = typeof width === 'number' ? width + 'px' : width;
     panel.style.cssText = 'position:fixed;width:' + widthCss + ';overflow:hidden;'
       + 'display:flex;flex-direction:column;'
-      + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
+      + 'background:var(--ikbm-bg);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+    applyIkbmTheme(panel);
     panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
       + '<span style="display:flex;gap:10px;align-items:center">'
@@ -316,7 +341,7 @@
   // (bezieht sich auf body, flex:1;overflow:auto in createPanel - gleiches
   // Muster wie die Kampfrechner-Tabs) - Nutzerwunsch: erst darunter (die
   // Ergebnistabelle) soll scrollen.
-  const travelBodyHtml = '<div style="position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
+  const travelBodyHtml = '<div style="position:sticky;top:0;background:var(--ikbm-bg);padding:2px 0;z-index:1">'
     + '<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
     + '<div style="flex:1;min-width:140px">Start: <input id="iktc-start" placeholder="z. B. -40 | -60" style="width:100%;box-sizing:border-box"></div>'
     + '<div style="flex:1;min-width:140px">Ziel: <input id="iktc-ziel" placeholder="z. B. -10 | -40" style="width:100%;box-sizing:border-box"></div>'
@@ -358,7 +383,7 @@
       + '<div>Luftlinie (Felder): <b>' + dist.toFixed(2) + '</b></div>'
       + '<div>Ankunft (ETA): <b>' + etaArr + '</b></div>'
       + '<div>Hinreise (einfach): <b style="color:#4ade80">' + formatTime(secOneWay) + '</b></div>'
-      + '<div>Hin &amp; Rückfahrt: <b style="color:#f0d68a">' + formatTime(secRoundTrip) + '</b></div>'
+      + '<div>Hin &amp; Rückfahrt: <b style="color:var(--ikbm-gold)">' + formatTime(secRoundTrip) + '</b></div>'
       + '</div>'
       + '<div style="font-size:12px;font-weight:bold;margin-bottom:6px">Vergleich aller Schiffstypen:</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
@@ -496,7 +521,7 @@
   // Eingabebox mit ebenso hellem, von unserem Panel geerbtem Text -
   // unsichtbar. FIELD_STYLE isoliert unsere Felder komplett vom
   // Seiten-Theme.
-  const FIELD_STYLE = 'background:#142338;color:#e6edf3;border:1px solid #24344a;border-radius:4px';
+  const FIELD_STYLE = 'background:var(--ikbm-field);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:4px';
   function unitRow(prefix, u, extra, clearable) {
     const key = prefix + ':' + u.name;
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
@@ -551,13 +576,13 @@
   // immer stumm alle zu summieren.
   const ownFleetBtnHtml = '<span style="display:flex;gap:4px;align-items:center">'
     + '<select id="ikcc-own-fleet-island" style="display:none;font-size:11px;padding:1px 4px;border-radius:4px;'
-    + 'background:#142338;color:#e6edf3;border:1px solid #24344a"></select>'
+    + 'background:var(--ikbm-field);color:var(--ikbm-text);border:1px solid var(--ikbm-border)"></select>'
     + '<button id="ikcc-own-fleet" style="font-size:11px;padding:2px 8px;border-radius:4px;'
     + 'border:none;cursor:pointer;background:#1f6feb;color:#fff">🚢 Eigene Flotte laden</button>'
     + '</span>';
 
   const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa', true, ownFleetBtnHtml)
-    + unitSection('def', 'Verteidiger', '#f0d68a', false)
+    + unitSection('def', 'Verteidiger', 'var(--ikbm-gold)', false)
     + '<div style="font-size:11px;opacity:.6;margin:4px 0">Verteidigungsanlagen</div>'
     + BUILDINGS_COMBAT.map(buildingRow).join('')
     + '<button id="ikcc-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Kämpfen</button>'
@@ -565,18 +590,18 @@
 
   const convoyBodyHtml = '<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Nur Schiffe — Piraten-Konvois haben keine Landtruppen/Verteidigungsanlagen.</p>'
     + shipOnlySection('catt', 'Angreifer', '#a78bfa', SHIPS_COMBAT, true)
-    + shipOnlySection('cdef', 'Piraten-Konvoi', '#f0d68a', PIRATE_SHIPS_COMBAT, false)
+    + shipOnlySection('cdef', 'Piraten-Konvoi', 'var(--ikbm-gold)', PIRATE_SHIPS_COMBAT, false)
     + '<button id="ikcc-convoy-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
     + '<div id="ikcc-convoy-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Schiffe eingeben und auf "Entern" klicken.</p></div>';
 
-  const ikccTabBtnStyle = 'flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px';
+  const ikccTabBtnStyle = 'flex:1;padding:5px;border:1px solid var(--ikbm-border);background:var(--ikbm-field);color:var(--ikbm-text);border-radius:5px;cursor:pointer;font-size:12px';
   // position:sticky bezieht sich auf den naechsten scrollenden Vorfahren -
   // das ist body (flex:1;overflow:auto, siehe createPanel), NICHT das ganze
   // Panel. top:0 heisst daher "oben im sichtbaren Scrollbereich von body",
   // was direkt unter dem (separat fixierten) Header liegt - kein manuelles
   // Hoehe-des-Headers-Ausmessen noetig. Eigener Hintergrund noetig, sonst
   // scheint darunterliegender Inhalt beim Scrollen durch.
-  const combatBodyHtml = '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
+  const combatBodyHtml = '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:var(--ikbm-bg);padding:2px 0;z-index:1">'
     + '<button id="ikcc-tab-pvp" style="' + ikccTabBtnStyle + '">PvP</button>'
     + '<button id="ikcc-tab-convoy" style="' + ikccTabBtnStyle + '">Konvoi entern</button>'
     + '</nav>'
@@ -592,6 +617,16 @@
   // und ueberlappte Spielinhalt (Nutzer-Screenshot 2026-09-17) - erst am
   // Kampfrechner getestet mit clamp(), 420px bleibt nur noch die Obergrenze.
   const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 'clamp(300px, 32vw, 420px)', 'right', combatBodyHtml);
+
+  // Reagiert auf einen Theme-Wechsel OHNE Reload: islandking.ch schaltet
+  // "dark" auf <html> per Klick um (kein Navigations-Event dabei), daher
+  // MutationObserver statt Poll - die CSS-Variablen aktualisieren beide
+  // Panels live, sobald applyIkbmTheme() sie neu setzt.
+  const ikbmThemeObserver = new MutationObserver(() => {
+    applyIkbmTheme(travel.panel);
+    applyIkbmTheme(combat.panel);
+  });
+  ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
   // Ein Klick auf ein "✕" (data-ikcc-clear, siehe unitRow) leert genau das
   // dazugehoerige Feld — ein einziger delegierter Listener statt einem pro
@@ -865,7 +900,7 @@
     const defSurvives = result.defFinal.some((u) => u.after > 0);
     if (!defSurvives && attSurvives) return { text: '🏆 Angreifer siegt — ' + defenderLabel + ' vollständig vernichtet', color: '#4ade80' };
     if (!attSurvives && !defSurvives) return { text: '💀 Gegenseitige Vernichtung — zählt als abgewehrter Angriff', color: '#f87171' };
-    return { text: '🛡️ ' + defenderLabel + ' hält (max. 6 Runden erreicht)', color: '#f0d68a' };
+    return { text: '🛡️ ' + defenderLabel + ' hält (max. 6 Runden erreicht)', color: 'var(--ikbm-gold)' };
   }
 
   function runCombat() {
@@ -1153,8 +1188,8 @@
   const ikccBodyPvp = document.getElementById('ikcc-tabbody-pvp');
   const ikccBodyConvoy = document.getElementById('ikcc-tabbody-convoy');
   function activateCombatTab(tab) {
-    ikccTabPvp.style.background = tab === 'pvp' ? '#1f6feb' : '#142338';
-    ikccTabConvoy.style.background = tab === 'convoy' ? '#1f6feb' : '#142338';
+    ikccTabPvp.style.background = tab === 'pvp' ? '#1f6feb' : 'var(--ikbm-field)';
+    ikccTabConvoy.style.background = tab === 'convoy' ? '#1f6feb' : 'var(--ikbm-field)';
     ikccBodyPvp.style.display = tab === 'pvp' ? 'block' : 'none';
     ikccBodyConvoy.style.display = tab === 'convoy' ? 'block' : 'none';
   }
