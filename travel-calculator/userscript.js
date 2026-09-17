@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.26
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px
+// @version      1.6.27
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, Eingabefelder im Kampfrechner auch bei Website-Weißmodus sichtbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -146,7 +146,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.26');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.27');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -225,7 +225,12 @@
     // Titel/Tabs beim Scrollen nicht mitwandern. min-height:0 auf body ist
     // der uebliche Flexbox-Trick, ohne den ein Flex-Item nicht kleiner als
     // sein Inhalt wird und overflow:auto wirkungslos bleibt.
-    panel.style.cssText = 'position:fixed;width:' + width + 'px;overflow:hidden;'
+    // width: Zahl -> feste Pixelbreite (Reisezeitenrechner, unveraendert),
+    // String -> eigener CSS-width-Wert (Testfall Kampfrechner: clamp(),
+    // damit das Panel bei kleiner Aufloesung/hohem Browser-Zoom schrumpft
+    // statt mit fixen 420px ueber Spielinhalt/andere Panels zu ragen).
+    const widthCss = typeof width === 'number' ? width + 'px' : width;
+    panel.style.cssText = 'position:fixed;width:' + widthCss + ';overflow:hidden;'
       + 'display:flex;flex-direction:column;'
       + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
@@ -482,12 +487,22 @@
   // clearable: kleines "✕" rechts neben dem Feld zum Leeren dieser einen
   // Zeile - nur bei der eigenen Flotte sinnvoll (Angreifer in PvP UND
   // Konvoi entern), nicht beim Verteidiger/Piraten-Konvoi (Gegner-Daten).
+  // Eigene background/color/border statt Website-Vorgabe erben: ein
+  // <input> ohne beides gesetzt uebernimmt islandking.chs eigene
+  // Formularfarben (CSS-Variablen, die mit dem Hell-/Dunkelmodus der Seite
+  // kippen) - live verifiziert per injiziertem Test-<input> (Dunkelmodus
+  // lieferte exakt unsere Panel-Farben zurueck, kein Browser-Default).
+  // Im Weissmodus (Nutzer-Screenshot 2026-09-17) ergab das eine helle
+  // Eingabebox mit ebenso hellem, von unserem Panel geerbtem Text -
+  // unsichtbar. FIELD_STYLE isoliert unsere Felder komplett vom
+  // Seiten-Theme.
+  const FIELD_STYLE = 'background:#142338;color:#e6edf3;border:1px solid #24344a;border-radius:4px';
   function unitRow(prefix, u, extra, clearable) {
     const key = prefix + ':' + u.name;
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
       + '<span style="opacity:.85">' + u.name + (extra || '') + '</span>'
       + '<span style="display:flex;align-items:center;gap:4px">'
-      + '<input type="number" min="0" value="0" data-ikcc-unit="' + key + '" style="width:70px;box-sizing:border-box">'
+      + '<input type="number" min="0" value="0" data-ikcc-unit="' + key + '" style="width:70px;box-sizing:border-box;' + FIELD_STYLE + '">'
       + (clearable ? '<span data-ikcc-clear="' + key + '" title="Leeren" style="cursor:pointer;opacity:.5;font-size:12px">✕</span>' : '')
       + '</span>'
       + '</div>';
@@ -502,7 +517,7 @@
     }
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
       + '<span style="opacity:.85">' + b.name + ' (Lv)</span>'
-      + '<input type="number" min="0" max="50" value="0" data-ikcc-bldg-lv="' + b.name + '" style="width:70px;box-sizing:border-box">'
+      + '<input type="number" min="0" max="50" value="0" data-ikcc-bldg-lv="' + b.name + '" style="width:70px;box-sizing:border-box;' + FIELD_STYLE + '">'
       + '</div>';
   }
 
@@ -573,7 +588,10 @@
   // den verfuegbaren Freiraum, ohne dass eines breiter herausragt. 380->420
   // (Nutzerwunsch 2026-09-14): die Scrollbar der Tab-Bodies ueberlagerte bei
   // 380px das "✕"/📌/✉-Icon am rechten Rand der Zeilen.
-  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 420, 'right', combatBodyHtml);
+  // v1.6.27: 420px war bei geringer Aufloesung/hohem Browser-Zoom zu breit
+  // und ueberlappte Spielinhalt (Nutzer-Screenshot 2026-09-17) - erst am
+  // Kampfrechner getestet mit clamp(), 420px bleibt nur noch die Obergrenze.
+  const combat = createPanel('ikcc-panel', '⚔️ Kampfrechner', 'clamp(300px, 32vw, 420px)', 'right', combatBodyHtml);
 
   // Ein Klick auf ein "✕" (data-ikcc-clear, siehe unitRow) leert genau das
   // dazugehoerige Feld — ein einziger delegierter Listener statt einem pro
