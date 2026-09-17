@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.5.0
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen) und Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite.
+// @version      1.5.1
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -59,7 +59,16 @@
  *    native Value-Setter + "input"-Event noetig, damit Reacts
  *    kontrollierte Inputs (kein Vue wie bei Kaserne/Handel) reagieren.
  *
- * Alle vier Funktionen ueber ein gemeinsames Poll-Intervall erkannt (gleiche
+ * 6) Allianzkuerzel bei Berichten (v1.5.1) — auf /spy-reports und
+ *    /battle-reports steht jetzt hinter jedem Spielernamen das
+ *    Allianzkuerzel in Klammern, z. B. "OscarZulu (BOB)" - 1:1 aus dem
+ *    Reisezeitenrechner/Kampfrechner uebernommen (Nachschlag ueber
+ *    /api/rankings?q=<Name>, players[0].alliance ist bereits das Kuerzel).
+ *    Gemeinsames Markierungs-Attribut "data-ikbm-alliance-done" mit dem
+ *    Reisezeitenrechner: laeuft der gleichzeitig, annotiert nur EINES der
+ *    beiden Scripts einen gegebenen Bericht, kein doppeltes "(TAG) (TAG)".
+ *
+ * Alle Funktionen ueber ein gemeinsames Poll-Intervall erkannt (gleiche
  * Technik wie in den anderen drei Islandking-Userscripts dieses Repos),
  * da die Seiten per Vue nachladen (Ausbau/Forschungsstart/Rekrutierung/
  * Inselwechsel), ohne einen vollen Seiten-Reload auszuloesen.
@@ -129,6 +138,7 @@
     tickMarketQuickAdd();
     tickHarborQuickFill();
     tickDashboardLevels();
+    annotateReportAllianceTags();
   }
 
   // -------------------------------------------------------------------
@@ -363,6 +373,79 @@
         });
       });
     });
+  }
+
+  // -------------------------------------------------------------------
+  // Allianzkuerzel hinter dem Namen bei Angriffs-/Spionageberichten
+  // (Feature 6, v1.5.1) — 1:1 aus travel-calculator/userscript.js
+  // uebernommen (siehe dortiger Kommentar fuer Details zu API-Schema,
+  // Cache-Promise-Bug und Regex-Muster). Weder /api/battle-reports noch
+  // /api/spy-reports liefern das Kuerzel mit, Nachschlag ueber
+  // /api/rankings?q=<Name>.
+  // Gemeinsames Markierungs-Attribut "data-ikbm-alliance-done" statt eines
+  // eigenen: der Reisezeitenrechner/Kampfrechner bringt dieselbe Funktion
+  // mit (dort meist geoeffnet, wenn man Berichte auswertet) - ohne
+  // gemeinsames Attribut wuerden beide Scripts denselben Bericht doppelt
+  // annotieren ("Name (TAG) (TAG)"), falls beide gleichzeitig aktiv sind.
+  // -------------------------------------------------------------------
+
+  function ikbmAuthHeaders() {
+    const token = (() => { try { return localStorage.getItem('access_token'); } catch (e) { return null; } })();
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  }
+
+  const allianceTagCache = new Map();
+  function fetchAllianceTag(name) {
+    if (allianceTagCache.has(name)) return allianceTagCache.get(name);
+    const p = fetch('/api/rankings?q=' + encodeURIComponent(name), { headers: ikbmAuthHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        const player = (data.players || []).find((pl) => pl.name === name);
+        return player && player.alliance ? player.alliance : '';
+      })
+      .catch(() => '');
+    allianceTagCache.set(name, p);
+    return p;
+  }
+
+  function insertTagAfterName(textNode, name, tag) {
+    if (!tag || !textNode.parentNode) return;
+    textNode.textContent = textNode.textContent.replace(name, name + ' (' + tag + ')');
+  }
+
+  function annotateSpyReportNames() {
+    document.querySelectorAll('li:not([data-ikbm-alliance-done])').forEach((li) => {
+      const span = Array.from(li.querySelectorAll('span')).find((s) =>
+        s.childNodes[0] && s.childNodes[0].nodeType === 3 && s.childNodes[0].textContent.includes('🔍'));
+      if (!span) return;
+      li.dataset.ikbmAllianceDone = '1';
+      const textNode = span.childNodes[0];
+      const m = textNode.textContent.match(/🔍\s*([^·]+?)\s*·/);
+      if (!m) return;
+      const name = m[1].trim();
+      fetchAllianceTag(name).then((tag) => insertTagAfterName(textNode, name, tag));
+    });
+  }
+
+  function annotateBattleReportNames() {
+    document.querySelectorAll('li:not([data-ikbm-alliance-done])').forEach((li) => {
+      const p = Array.from(li.querySelectorAll('p')).find((el) =>
+        el.childNodes[0] && el.childNodes[0].nodeType === 3 && el.childNodes[0].textContent.includes('⚔️'));
+      if (!p) return;
+      li.dataset.ikbmAllianceDone = '1';
+      const textNode = p.childNodes[0];
+      const m = textNode.textContent.match(/^(.+?)\s*⚔️\s*(.+?)\s*·/);
+      if (!m) return;
+      const attacker = m[1].trim();
+      const defender = m[2].trim();
+      fetchAllianceTag(attacker).then((tag) => insertTagAfterName(textNode, attacker, tag));
+      fetchAllianceTag(defender).then((tag) => insertTagAfterName(textNode, defender, tag));
+    });
+  }
+
+  function annotateReportAllianceTags() {
+    if (location.pathname === '/spy-reports') annotateSpyReportNames();
+    else if (location.pathname === '/battle-reports') annotateBattleReportNames();
   }
 
   tick();

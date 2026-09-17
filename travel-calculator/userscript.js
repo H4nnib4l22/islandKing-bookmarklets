@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.29
+// @version      1.6.30
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -170,7 +170,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.29');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.30');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -532,13 +532,22 @@
   // Flexbox' Default-min-width:auto das Schrumpfen ueberhaupt).
   const ROW_NAME_STYLE = 'opacity:.85;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
   const ROW_CONTROLS_STYLE = 'display:flex;align-items:center;gap:4px;flex:none';
+  // Nutzer-Report 2026-09-18 (Nachfolge-Fix): flex:none allein reichte
+  // nicht - Angreifer-Zeilen (clearable, mit "✕") und Verteidiger-Zeilen
+  // (ohne "✕") hatten unterschiedlich breite Steuerelement-Spannen, die per
+  // justify-content:space-between beide rechtsbuendig ausgerichtet wurden -
+  // dadurch sass das Input bei fehlendem "✕" weiter rechts als bei
+  // vorhandenem, die Spalte war zwischen beiden Sektionen nicht buendig.
+  // "✕" bleibt jetzt IMMER im Markup (reserviert die Breite), nur bei
+  // clearable=false unsichtbar/nicht klickbar statt komplett entfernt.
   function unitRow(prefix, u, extra, clearable) {
     const key = prefix + ':' + u.name;
+    const clearStyle = clearable ? '' : 'visibility:hidden;pointer-events:none';
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
       + '<span style="' + ROW_NAME_STYLE + '" title="' + u.name + '">' + u.name + (extra || '') + '</span>'
       + '<span style="' + ROW_CONTROLS_STYLE + '">'
       + '<input type="number" min="0" value="0" data-ikcc-unit="' + key + '" style="width:70px;box-sizing:border-box;' + FIELD_STYLE + '">'
-      + (clearable ? '<span data-ikcc-clear="' + key + '" title="Leeren" style="cursor:pointer;opacity:.5;font-size:12px">✕</span>' : '')
+      + '<span data-ikcc-clear="' + key + '" title="Leeren" style="cursor:pointer;opacity:.5;font-size:12px;' + clearStyle + '">✕</span>'
       + '</span>'
       + '</div>';
   }
@@ -1158,12 +1167,16 @@
 
   // markiert per data-Attribut auf dem <li>, damit der 250ms-Poll
   // (repositionAll) denselben Bericht nicht wiederholt nachschlaegt.
+  // ikbm- statt ikcc-Praefix (v1.6.30): das Content-Addon-Userscript
+  // bekommt dieselbe Funktion und muss dasselbe Markierungs-Attribut
+  // respektieren, sonst annotieren beide Scripts denselben Bericht doppelt
+  // (zweites "(TAG)" hinter dem Namen), falls beide gleichzeitig aktiv sind.
   function annotateSpyReportNames() {
-    document.querySelectorAll('li:not([data-ikcc-alliance-done])').forEach((li) => {
+    document.querySelectorAll('li:not([data-ikbm-alliance-done])').forEach((li) => {
       const span = Array.from(li.querySelectorAll('span')).find((s) =>
         s.childNodes[0] && s.childNodes[0].nodeType === 3 && s.childNodes[0].textContent.includes('🔍'));
       if (!span) return;
-      li.dataset.ikccAllianceDone = '1';
+      li.dataset.ikbmAllianceDone = '1';
       const textNode = span.childNodes[0];
       const m = textNode.textContent.match(/🔍\s*([^·]+?)\s*·/);
       if (!m) return;
@@ -1173,11 +1186,11 @@
   }
 
   function annotateBattleReportNames() {
-    document.querySelectorAll('li:not([data-ikcc-alliance-done])').forEach((li) => {
+    document.querySelectorAll('li:not([data-ikbm-alliance-done])').forEach((li) => {
       const p = Array.from(li.querySelectorAll('p')).find((el) =>
         el.childNodes[0] && el.childNodes[0].nodeType === 3 && el.childNodes[0].textContent.includes('⚔️'));
       if (!p) return;
-      li.dataset.ikccAllianceDone = '1';
+      li.dataset.ikbmAllianceDone = '1';
       const textNode = p.childNodes[0];
       const m = textNode.textContent.match(/^(.+?)\s*⚔️\s*(.+?)\s*·/);
       if (!m) return;
