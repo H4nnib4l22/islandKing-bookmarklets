@@ -9,7 +9,7 @@
  * Produktion/h dazu.
  */
 (function () {
-  const VERSION = 'v1.3.0';
+  const VERSION = 'v1.3.1';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -99,6 +99,26 @@
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
+  // Live an den Hell-/Dunkelmodus der Seite gekoppelt - 1:1 aus dem
+  // Reisezeitenrechner/Kampfrechner uebernommen: islandking.ch schaltet die
+  // Klasse "dark" auf <html> um, CSS-Variablen vererben sich an alle
+  // Kind-Elemente und aktualisieren sich live.
+  const IKBM_THEMES = {
+    dark: { bg: '#0f1b2b', text: '#e6edf3', border: '#24344a', field: '#142338', gold: '#f0d68a' },
+    light: { bg: '#f4f7fb', text: '#1a2333', border: '#c7d2e0', field: '#ffffff', gold: '#92700c' },
+  };
+  function ikbmCurrentTheme() {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  }
+  function applyIkbmTheme(panel) {
+    const t = IKBM_THEMES[ikbmCurrentTheme()];
+    panel.style.setProperty('--ikbm-bg', t.bg);
+    panel.style.setProperty('--ikbm-text', t.text);
+    panel.style.setProperty('--ikbm-border', t.border);
+    panel.style.setProperty('--ikbm-field', t.field);
+    panel.style.setProperty('--ikbm-gold', t.gold);
+  }
+
   const PANEL_ID = 'ikrc-panel';
   const SIDE_KEY = 'ikbm-side-' + PANEL_ID;
   const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
@@ -118,8 +138,9 @@
   // Kampfrechner-Panel des Reisezeitenrechners uebernommen).
   panel.style.cssText = 'position:fixed;width:420px;overflow:hidden;'
     + 'display:flex;flex-direction:column;'
-    + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
+    + 'background:var(--ikbm-bg);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+  applyIkbmTheme(panel);
   panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE_HTML + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
@@ -161,7 +182,12 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); };
+  // Reagiert auf einen Theme-Wechsel OHNE Reload (kein Navigations-Event
+  // dabei) - siehe Kommentar bei IKBM_THEMES weiter oben.
+  const ikbmThemeObserver = new MutationObserver(() => applyIkbmTheme(panel));
+  ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+  panel.__ikrcCleanup = () => { clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); };
 
   closeBtn.onclick = () => { panel.__ikrcCleanup(); panel.remove(); };
 
@@ -170,16 +196,21 @@
     const currentMatch = location.pathname.match(/\/island\/(\d+)/);
     const currentId = currentMatch ? Number(currentMatch[1]) : islands[0].id;
 
+    // FIELD_STYLE: ohne eigenes background/color wuerden diese Felder die
+    // Formularfarben der Website erben (CSS-Variablen, die mit deren Hell-/
+    // Dunkelmodus kippen) - dasselbe Muster wie der Weissmodus-Fix im
+    // Kampfrechner (siehe travel-calculator/userscript.js).
+    const FIELD_STYLE = 'background:var(--ikbm-field);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:4px';
     body.innerHTML = ''
-      + 'Insel: <select id="ikrc-island"></select><br><br>'
-      + 'Typ: <select id="ikrc-type">'
+      + 'Insel: <select id="ikrc-island" style="' + FIELD_STYLE + '"></select><br><br>'
+      + 'Typ: <select id="ikrc-type" style="' + FIELD_STYLE + '">'
       + '<option value="building">Gebäude</option>'
       + '<option value="research">Forschung</option>'
       + '<option value="ship">Schiff</option>'
       + '</select><br><br>'
-      + 'Ziel: <select id="ikrc-target" style="width:100%"></select><br><br>'
-      + '<span id="ikrc-level-label">Ziel-Stufe:</span> <input id="ikrc-level" type="number" min="1" value="1" style="width:60px"><br><br>'
-      + '<button id="ikrc-calc" style="padding:4px 12px">Berechnen</button>'
+      + 'Ziel: <select id="ikrc-target" style="width:100%;' + FIELD_STYLE + '"></select><br><br>'
+      + '<span id="ikrc-level-label">Ziel-Stufe:</span> <input id="ikrc-level" type="number" min="1" value="1" style="width:60px;' + FIELD_STYLE + '"><br><br>'
+      + '<button id="ikrc-calc" style="padding:4px 12px;background:#1f6feb;color:#fff;border:none;border-radius:4px;cursor:pointer">Berechnen</button>'
       + '<div id="ikrc-result" style="margin-top:12px"></div>';
 
     const islandSel = document.getElementById('ikrc-island');
@@ -353,8 +384,8 @@
         }).join(' → ');
 
         resultDiv.innerHTML = ''
-          + (unverifiedSteps.length ? '<div style="color:#f0c674;margin-bottom:6px">⚠️ Mehrstufiger Sprung bei ' + unverifiedSteps.join(', ') + ' — Wert stammt ungeprüft von tech-path, kann abweichen.</div>' : '')
-          + (overCapacity ? '<div style="color:#f0c674;margin-bottom:6px">⚠️ Zielkosten übersteigen dein Lager (' + isl.capacity.toLocaleString() + ') — Lager ausbauen nötig.</div>' : '')
+          + (unverifiedSteps.length ? '<div style="color:var(--ikbm-gold);margin-bottom:6px">⚠️ Mehrstufiger Sprung bei ' + unverifiedSteps.join(', ') + ' — Wert stammt ungeprüft von tech-path, kann abweichen.</div>' : '')
+          + (overCapacity ? '<div style="color:var(--ikbm-gold);margin-bottom:6px">⚠️ Zielkosten übersteigen dein Lager (' + isl.capacity.toLocaleString() + ') — Lager ausbauen nötig.</div>' : '')
           + (stepBonuses.length ? '<div style="opacity:.8;margin-bottom:6px">' + (path.steps.length > 1 ? 'Voraussetzungskette: ' : 'Zeitbonus: ') + chainLine + '</div>' : '')
           + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
           + '<tr style="opacity:.7"><td>Rohstoff</td><td>Ziel</td><td>Hast</td><td>Prod.</td><td>Ansparzeit</td></tr>'

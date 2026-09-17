@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.5
-// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px
+// @version      1.1.6
+// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -47,7 +47,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.5';
+  const VERSION = 'v1.1.6';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -84,6 +84,26 @@
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
+  }
+
+  // Live an den Hell-/Dunkelmodus der Seite gekoppelt - 1:1 aus dem
+  // Reisezeitenrechner/Kampfrechner uebernommen: islandking.ch schaltet die
+  // Klasse "dark" auf <html> um, CSS-Variablen vererben sich an alle
+  // Kind-Elemente und aktualisieren sich live.
+  const IKBM_THEMES = {
+    dark: { bg: '#0f1b2b', text: '#e6edf3', border: '#24344a', field: '#142338', gold: '#f0d68a' },
+    light: { bg: '#f4f7fb', text: '#1a2333', border: '#c7d2e0', field: '#ffffff', gold: '#92700c' },
+  };
+  function ikbmCurrentTheme() {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  }
+  function applyIkbmTheme(panel) {
+    const t = IKBM_THEMES[ikbmCurrentTheme()];
+    panel.style.setProperty('--ikbm-bg', t.bg);
+    panel.style.setProperty('--ikbm-text', t.text);
+    panel.style.setProperty('--ikbm-border', t.border);
+    panel.style.setProperty('--ikbm-field', t.field);
+    panel.style.setProperty('--ikbm-gold', t.gold);
   }
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -126,10 +146,10 @@
         if (remoteVersion === localVersion) {
           setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
         } else if (typeof GM_openInTab !== 'undefined') {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
+          setIconState(iconEl, '↑', 'var(--ikbm-gold)', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
           GM_openInTab(UPDATE_DOWNLOAD_URL, { active: true });
         } else {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
+          setIconState(iconEl, '↑', 'var(--ikbm-gold)', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
         }
       },
       onerror: () => {
@@ -310,8 +330,9 @@
   // uebernommen).
   panel.style.cssText = 'position:fixed;width:420px;overflow:hidden;'
     + 'display:flex;flex-direction:column;'
-    + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
+    + 'background:var(--ikbm-bg);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+  applyIkbmTheme(panel);
   panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE_HTML + '</b>'
     + '<span style="display:flex;gap:10px;align-items:center">'
@@ -320,7 +341,7 @@
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
     + '<div data-role="body" id="iksr-body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>'
-    + '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:#0f1b2b;padding:2px 0;z-index:1">'
+    + '<nav style="display:flex;gap:4px;margin-bottom:10px;position:sticky;top:0;background:var(--ikbm-bg);padding:2px 0;z-index:1">'
     + '<button id="iksr-tab-spy" class="iksr-tabbtn active">Spionage</button>'
     + '<button id="iksr-tab-fleet" class="iksr-tabbtn">Flotte</button>'
     + '</nav>'
@@ -372,23 +393,27 @@
   }
   reposition();
   const repositionHandle = setInterval(reposition, 250);
-  panel.__iksrCleanup = () => { clearInterval(repositionHandle); };
+  // Reagiert auf einen Theme-Wechsel OHNE Reload (kein Navigations-Event
+  // dabei) - siehe Kommentar bei IKBM_THEMES weiter oben.
+  const ikbmThemeObserver = new MutationObserver(() => applyIkbmTheme(panel));
+  ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  panel.__iksrCleanup = () => { clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); };
   closeBtn.onclick = () => { panel.__iksrCleanup(); panel.remove(); };
 
   const style = document.createElement('style');
-  style.textContent = '#iksr-panel .iksr-tabbtn{flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'
+  style.textContent = '#iksr-panel .iksr-tabbtn{flex:1;padding:5px;border:1px solid var(--ikbm-border);background:var(--ikbm-field);color:var(--ikbm-text);border-radius:5px;cursor:pointer;font-size:12px}'
     + '#iksr-panel .iksr-tabbtn.active{background:#1f6feb;border-color:#1f6feb}'
     + '#iksr-panel .status{font-size:11px;color:#66727f;min-height:14px;margin:-2px 0 8px}'
     + '#iksr-panel .status.error{color:#f2a0a0}'
     + '#iksr-panel .status.success{color:#9fe0c0}'
-    + '#iksr-panel input[type=text]{width:100%;box-sizing:border-box;background:#142338;border:1px solid #24344a;color:#e6edf3;border-radius:6px;padding:7px 8px;font-size:13px;margin-bottom:8px}'
-    + '#iksr-panel textarea{width:100%;box-sizing:border-box;height:170px;background:#142338;border:1px solid #24344a;color:#e6edf3;border-radius:6px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:8px}'
+    + '#iksr-panel input[type=text]{width:100%;box-sizing:border-box;background:var(--ikbm-field);border:1px solid var(--ikbm-border);color:var(--ikbm-text);border-radius:6px;padding:7px 8px;font-size:13px;margin-bottom:8px}'
+    + '#iksr-panel textarea{width:100%;box-sizing:border-box;height:170px;background:var(--ikbm-field);border:1px solid var(--ikbm-border);color:var(--ikbm-text);border-radius:6px;padding:8px;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:8px}'
     + '#iksr-panel button.primary{width:100%;box-sizing:border-box;padding:7px;border:none;border-radius:6px;background:#1f6feb;color:#fff;font-size:12px;cursor:pointer;margin-bottom:8px}'
     + '#iksr-panel button.primary:disabled{opacity:.6;cursor:default}'
-    + '#iksr-panel button.secondary{width:100%;box-sizing:border-box;padding:7px;border:1px solid #24344a;border-radius:6px;background:#24344a;color:#e6edf3;font-size:12px;cursor:pointer}'
+    + '#iksr-panel button.secondary{width:100%;box-sizing:border-box;padding:7px;border:1px solid var(--ikbm-border);border-radius:6px;background:var(--ikbm-border);color:var(--ikbm-text);font-size:12px;cursor:pointer}'
     + '#iksr-panel #iksr-spy-choices{display:flex;flex-direction:column;gap:4px}'
-    + '#iksr-panel button.choice{width:100%;box-sizing:border-box;text-align:left;padding:6px 8px;border:1px solid #24344a;border-radius:6px;background:#142338;color:#e6edf3;font-size:12px;cursor:pointer}'
-    + '#iksr-panel button.choice:hover{background:#1c2f45}';
+    + '#iksr-panel button.choice{width:100%;box-sizing:border-box;text-align:left;padding:6px 8px;border:1px solid var(--ikbm-border);border-radius:6px;background:var(--ikbm-field);color:var(--ikbm-text);font-size:12px;cursor:pointer}'
+    + '#iksr-panel button.choice:hover{background:rgba(127,127,127,.2)}';
   panel.appendChild(style);
 
   // ---------------------------------------------------------------------

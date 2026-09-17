@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.21
-// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit
+// @version      1.6.22
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen bleibt auch eingeklappt sichtbar
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -295,6 +295,44 @@
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
+  // Live an den Hell-/Dunkelmodus der Seite gekoppelt - 1:1 aus dem
+  // Reisezeitenrechner/Kampfrechner uebernommen (siehe Kommentar dort):
+  // islandking.ch schaltet die Klasse "dark" auf <html> um, CSS-Variablen
+  // vererben sich an alle Kind-Elemente und aktualisieren sich live.
+  // favBg/incBg/outBg (+ die passenden Border-Toene): die Favoriten-/
+  // Eingehend-/Ausgehend-Box-Hintergruende sind im Dunkelmodus bewusst
+  // dunkle Farbtoene, die zusammen mit dem hellen --ikbm-text lesbar sind.
+  // Im Weissmodus wuerde --ikbm-text auf dunkel kippen und dieselben
+  // dunklen Boxen unlesbar machen (dunkler Text auf fast schwarz) - daher
+  // eigene, helle Gegenstuecke statt die dunklen Toene wiederzuverwenden.
+  const IKBM_THEMES = {
+    dark: {
+      bg: '#0f1b2b', text: '#e6edf3', border: '#24344a', field: '#142338', gold: '#f0d68a',
+      favBg: '#1c2410', favBorder: '#4a4620', incBg: '#3a1414', incBorder: '#7a2a2a', outBg: '#123a1e', outBorder: '#2a7a44',
+    },
+    light: {
+      bg: '#f4f7fb', text: '#1a2333', border: '#c7d2e0', field: '#ffffff', gold: '#92700c',
+      favBg: '#f3f7e0', favBorder: '#c9d9a0', incBg: '#fbe8e8', incBorder: '#e3b3b3', outBg: '#e6f5ea', outBorder: '#a8d9b8',
+    },
+  };
+  function ikbmCurrentTheme() {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+  }
+  function applyIkbmTheme(panel) {
+    const t = IKBM_THEMES[ikbmCurrentTheme()];
+    panel.style.setProperty('--ikbm-bg', t.bg);
+    panel.style.setProperty('--ikbm-text', t.text);
+    panel.style.setProperty('--ikbm-border', t.border);
+    panel.style.setProperty('--ikbm-field', t.field);
+    panel.style.setProperty('--ikbm-gold', t.gold);
+    panel.style.setProperty('--ikbm-fav-bg', t.favBg);
+    panel.style.setProperty('--ikbm-fav-border', t.favBorder);
+    panel.style.setProperty('--ikbm-inc-bg', t.incBg);
+    panel.style.setProperty('--ikbm-inc-border', t.incBorder);
+    panel.style.setProperty('--ikbm-out-bg', t.outBg);
+    panel.style.setProperty('--ikbm-out-border', t.outBorder);
+  }
+
   const PANEL_ID = 'ikas-panel';
   const SIDE_KEY = 'ikbm-side-' + PANEL_ID;
   const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
@@ -307,7 +345,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.21';
+  const VERSION = 'v1.6.22';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -355,10 +393,10 @@
         if (remoteVersion === localVersion) {
           setIconState(iconEl, '✓', '#4ade80', 'Aktuell (v' + localVersion + ').', true);
         } else if (typeof GM_openInTab !== 'undefined') {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
+          setIconState(iconEl, '↑', 'var(--ikbm-gold)', 'Update v' + remoteVersion + ' — Tampermonkey-Update-Seite geöffnet, dort bestätigen.', true);
           GM_openInTab(UPDATE_DOWNLOAD_URL, { active: true });
         } else {
-          setIconState(iconEl, '↑', '#f0d68a', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
+          setIconState(iconEl, '↑', 'var(--ikbm-gold)', 'Update verfügbar: v' + remoteVersion + ' (installiert: v' + localVersion + ') — GM_openInTab fehlt, Update-Seite manuell öffnen: ' + UPDATE_DOWNLOAD_URL, true);
         }
       },
       onerror: () => {
@@ -373,10 +411,14 @@
   panel.dataset.ikbmSide = side;
   panel.dataset.ikbmSeq = seq;
   panel.style.cssText = 'position:fixed;width:420px;display:flex;flex-direction:column;'
-    + 'background:#0f1b2b;color:#e6edf3;border:1px solid #24344a;border-radius:8px;'
+    + 'background:var(--ikbm-bg);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:8px;'
     + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
+  applyIkbmTheme(panel);
   panel.innerHTML = '<div data-role="header" style="display:flex;justify-content:space-between;align-items:center;flex:none;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    + '<span style="display:flex;align-items:center;gap:5px">'
     + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + TITLE + '</b>'
+    + '<span id="ikas-header-dot" title="Neue Angriffe/Spähposten-Meldungen" style="display:none;width:7px;height:7px;border-radius:50%;background:#f2a0a0;flex:none"></span>'
+    + '</span>'
     + '<span style="display:flex;gap:10px;align-items:center">'
     + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
@@ -430,33 +472,51 @@
   reposition();
   const repositionHandle = setInterval(reposition, 250);
 
-  panel.__ikasCleanup = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); };
+  // Reagiert auf einen Theme-Wechsel OHNE Reload (kein Navigations-Event
+  // dabei) - siehe Kommentar bei IKBM_THEMES weiter oben.
+  const ikbmThemeObserver = new MutationObserver(() => applyIkbmTheme(panel));
+  ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+  panel.__ikasCleanup = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); };
   closeBtn.onclick = () => { panel.__ikasCleanup(); panel.remove(); };
 
   const style = document.createElement('style');
-  style.textContent = '#ikas-panel .ikas-tabbtn{position:relative;flex:1;padding:5px;border:1px solid #24344a;background:#142338;color:#e6edf3;border-radius:5px;cursor:pointer;font-size:12px}'
+  style.textContent = '#ikas-panel .ikas-tabbtn{position:relative;flex:1;padding:5px;border:1px solid var(--ikbm-border);background:var(--ikbm-field);color:var(--ikbm-text);border-radius:5px;cursor:pointer;font-size:12px}'
     + '#ikas-panel .ikas-tabbtn.active{background:#1f6feb;border-color:#1f6feb}'
     + '#ikas-panel .dot{position:absolute;top:2px;right:4px;width:7px;height:7px;border-radius:50%;background:#f2a0a0}'
     + '#ikas-panel .status{font-size:11px;color:#66727f;margin-bottom:8px}'
     + '#ikas-panel .error{color:#f2a0a0}'
-    + '#ikas-panel .group-label{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#f0d68a;margin:10px 0 4px;display:flex;align-items:center;gap:4px;cursor:default}'
+    + '#ikas-panel .group-label{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ikbm-gold);margin:10px 0 4px;display:flex;align-items:center;gap:4px;cursor:default}'
     + '#ikas-panel .group-label.collapsible{cursor:pointer;user-select:none}'
-    + '#ikas-panel .box{display:flex;align-items:center;gap:8px;background:#142338;border:1px solid #24344a;border-radius:6px;padding:4px 8px;margin-bottom:4px}'
-    + '#ikas-panel .box.favorite{background:#1c2410;border-color:#4a4620}'
-    + '#ikas-panel .box.incoming{background:#3a1414;border-color:#7a2a2a}'
-    + '#ikas-panel .box.outgoing{background:#123a1e;border-color:#2a7a44}'
+    + '#ikas-panel .box{display:flex;align-items:center;gap:8px;background:var(--ikbm-field);border:1px solid var(--ikbm-border);border-radius:6px;padding:4px 8px;margin-bottom:4px}'
+    + '#ikas-panel .box.favorite{background:var(--ikbm-fav-bg);border-color:var(--ikbm-fav-border)}'
+    + '#ikas-panel .box.incoming{background:var(--ikbm-inc-bg);border-color:var(--ikbm-inc-border)}'
+    + '#ikas-panel .box.outgoing{background:var(--ikbm-out-bg);border-color:var(--ikbm-out-border)}'
     + '#ikas-panel .box .info{flex:1;min-width:0}'
     + '#ikas-panel .box .name{font-weight:600;font-size:12px}'
     + '#ikas-panel .box .meta{font-size:11px;color:#a9c6f0}'
     + '#ikas-panel .box .meta.on{color:#9fe0c0}'
     + '#ikas-panel .box .time{font-size:11px;color:#7f95b3;white-space:nowrap;flex-shrink:0}'
     + '#ikas-panel .pin{background:none;border:none;color:#a9c6f0;opacity:.5;cursor:pointer;font-size:14px}'
-    + '#ikas-panel .pin.active{color:#f0d68a;opacity:1}'
+    + '#ikas-panel .pin.active{color:var(--ikbm-gold);opacity:1}'
     + '#ikas-panel .rm{background:none;border:none;color:#f2a0a0;cursor:pointer;font-size:14px}'
     + '#ikas-panel .msg{color:#a9c6f0;text-decoration:none;opacity:.75}'
-    + '#ikas-panel input[type=text]{flex:1;background:#0f1b2b;border:1px solid #24344a;color:#e6edf3;border-radius:4px;padding:5px 7px;font-size:12px}'
+    + '#ikas-panel input[type=text]{flex:1;background:var(--ikbm-field);border:1px solid var(--ikbm-border);color:var(--ikbm-text);border-radius:4px;padding:5px 7px;font-size:12px}'
     + '#ikas-panel button.add{padding:5px 10px;border:none;border-radius:5px;background:#1f6feb;color:#fff;cursor:pointer;font-size:12px}';
   panel.appendChild(style);
+
+  // Nutzer-Report 2026-09-18: der rote Punkt bei neuen Angriffen/Spähposten-
+  // Meldungen sass bisher NUR in den Tab-Buttons (nav, Teil von "body") -
+  // eingeklappt (panelBody.hidden) war er komplett unsichtbar, obwohl genau
+  // dann am wichtigsten, weil man den Panel-Inhalt gar nicht sieht. Eigener
+  // Punkt neben dem Titel (ausserhalb von "body", bleibt beim Einklappen
+  // sichtbar) - spiegelt einfach "einer der beiden Tab-Punkte ist an".
+  const headerDot = document.getElementById('ikas-header-dot');
+  function updateHeaderDot() {
+    const attacksOn = !document.getElementById('ikas-attacks-dot').hidden;
+    const scoutOn = !document.getElementById('ikas-scout-dot').hidden;
+    headerDot.style.display = (attacksOn || scoutOn) ? 'inline-block' : 'none';
+  }
 
   let activeTabName = 'alliance';
   function activateTab(tab) {
@@ -471,6 +531,7 @@
     document.getElementById('ikas-scout').style.display = tab === 'scout' ? 'block' : 'none';
     if (tab === 'attacks') document.getElementById('ikas-attacks-dot').hidden = true;
     if (tab === 'scout') document.getElementById('ikas-scout-dot').hidden = true;
+    updateHeaderDot();
   }
   document.getElementById('ikas-tab-alliance').onclick = () => activateTab('alliance');
   document.getElementById('ikas-tab-tracked').onclick = () => activateTab('tracked');
@@ -736,6 +797,7 @@
     knownFleetKeys = currentKeys;
     saveJson(LS_KNOWN_FLEETS, [...currentKeys]);
     if (hasNew && activeTabName !== 'attacks') document.getElementById('ikas-attacks-dot').hidden = false;
+    updateHeaderDot();
 
     body.innerHTML = '';
     const title = document.createElement('div');
@@ -845,6 +907,7 @@
     knownScoutKeys = currentKeys;
     saveJson(LS_KNOWN_SCOUT, [...currentKeys]);
     if (hasNew && activeTabName !== 'scout') document.getElementById('ikas-scout-dot').hidden = false;
+    updateHeaderDot();
 
     body.innerHTML = '';
     withOutpost.forEach((r) => {
