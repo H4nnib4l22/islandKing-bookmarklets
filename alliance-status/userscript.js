@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.22
-// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen bleibt auch eingeklappt sichtbar
+// @version      1.6.23
+// @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar, Seite (links/rechts) frei wählbar, feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -183,13 +183,31 @@
   // den Token frisch getauscht hat - Nutzer-Report 2026-09-15).
   const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
   const RELOAD_COOLDOWN_MS = 60000;
+  // Nutzer-Report 2026-09-18: der Cooldown allein verhinderte nur schnelle
+  // Reload-Schleifen, nicht den DAUERHAFTEN Fall (Session wirklich
+  // abgelaufen statt nur kurz geglitcht) - dann reloadete die Seite
+  // unbegrenzt weiter, alle 60s, ohne dass ein Reload je etwas behob.
+  // Gemeinsamer Versuchszaehler (LS_RELOAD_ATTEMPTS) ueber ALLE Panels
+  // hinweg: nach RELOAD_ATTEMPTS_MAX erfolglosen Versuchen wird aufgegeben
+  // statt endlos weiterzureloaden. Reset in apiFetch() bei jeder
+  // erfolgreichen (nicht-401) Antwort - sobald der Nutzer sich neu
+  // eingeloggt hat, darf der naechste 401 wieder von vorn zaehlen.
+  const LS_RELOAD_ATTEMPTS = 'ikbm_reloadAttempts';
+  const RELOAD_ATTEMPTS_MAX = 5;
   function guardedReload() {
     const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
     if (Date.now() - last < RELOAD_COOLDOWN_MS) {
       logDebug('reload-skip-cooldown', { msRemaining: RELOAD_COOLDOWN_MS - (Date.now() - last) });
       return;
     }
-    logDebug('reload', {});
+    const attempts = (Number(localStorage.getItem(LS_RELOAD_ATTEMPTS)) || 0) + 1;
+    if (attempts > RELOAD_ATTEMPTS_MAX) {
+      logDebug('reload-cap-reached', { attempts });
+      console.warn('[Islandking] Automatischer Reload nach ' + RELOAD_ATTEMPTS_MAX + ' erfolglosen Versuchen gestoppt - Session vermutlich abgelaufen, bitte manuell auf islandking.ch neu einloggen.');
+      return;
+    }
+    localStorage.setItem(LS_RELOAD_ATTEMPTS, String(attempts));
+    logDebug('reload', { attempts });
     localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
     location.reload();
   }
@@ -216,10 +234,11 @@
     try { body = await res.json(); } catch { /* leere/ungueltige Antwort */ }
     if (!res.ok) {
       if (res.status === 401) reloadOn401();
-      else consecutive401 = 0;
+      else { consecutive401 = 0; localStorage.removeItem(LS_RELOAD_ATTEMPTS); }
       throw new ApiError(res.status, body?.error || ('HTTP ' + res.status));
     }
     consecutive401 = 0;
+    localStorage.removeItem(LS_RELOAD_ATTEMPTS);
     return body;
   }
 
@@ -345,7 +364,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.22';
+  const VERSION = 'v1.6.23';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -453,6 +472,7 @@
     collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + TITLE;
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
+    updateHeaderDot();
   });
 
   sideToggle.addEventListener('click', () => {
@@ -510,12 +530,15 @@
   // eingeklappt (panelBody.hidden) war er komplett unsichtbar, obwohl genau
   // dann am wichtigsten, weil man den Panel-Inhalt gar nicht sieht. Eigener
   // Punkt neben dem Titel (ausserhalb von "body", bleibt beim Einklappen
-  // sichtbar) - spiegelt einfach "einer der beiden Tab-Punkte ist an".
+  // sichtbar) - spiegelt "einer der beiden Tab-Punkte ist an".
+  // Korrektur (Nutzer-Feedback): NUR im eingeklappten Zustand zeigen - im
+  // ausgeklappten Zustand sieht man die Tab-Punkte ohnehin direkt, ein
+  // zweiter Punkt im Titel waere dort nur redundant.
   const headerDot = document.getElementById('ikas-header-dot');
   function updateHeaderDot() {
     const attacksOn = !document.getElementById('ikas-attacks-dot').hidden;
     const scoutOn = !document.getElementById('ikas-scout-dot').hidden;
-    headerDot.style.display = (attacksOn || scoutOn) ? 'inline-block' : 'none';
+    headerDot.style.display = (panelBody.hidden && (attacksOn || scoutOn)) ? 'inline-block' : 'none';
   }
 
   let activeTabName = 'alliance';

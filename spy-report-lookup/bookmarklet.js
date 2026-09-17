@@ -12,7 +12,7 @@
  * sich unter andere offene islandking.ch-Panels ein.
  */
 (function () {
-  const VERSION = 'v1.1.3';
+  const VERSION = 'v1.1.4';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -78,12 +78,24 @@
   // reiner Timer kann den tatsaechlichen Token-Ablauf verpassen. Cooldown
   // per localStorage verhindert eine Reload-Schleife, falls die API
   // dauerhaft 401 liefert (z.B. echter Logout statt nur abgelaufener Token).
-  const LS_LAST_AUTH_RELOAD = 'iksr_lastAuthReload';
+  // Gemeinsame Keys mit ALLEN Panel-Scripts (statt eigenem iksr_-Key).
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
   const AUTH_RELOAD_COOLDOWN_MS = 30000;
+  // Nutzer-Report 2026-09-18: Cooldown allein verhinderte nur schnelle
+  // Reload-Schleifen, nicht den DAUERHAFTEN Fall (Session wirklich
+  // abgelaufen). Gemeinsamer Versuchszaehler ueber ALLE Panels.
+  const LS_RELOAD_ATTEMPTS = 'ikbm_reloadAttempts';
+  const RELOAD_ATTEMPTS_MAX = 5;
   function reloadOn401() {
-    const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
     if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) return;
-    localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
+    const attempts = (Number(localStorage.getItem(LS_RELOAD_ATTEMPTS)) || 0) + 1;
+    if (attempts > RELOAD_ATTEMPTS_MAX) {
+      console.warn('[Islandking] Automatischer Reload nach ' + RELOAD_ATTEMPTS_MAX + ' erfolglosen Versuchen gestoppt - Session vermutlich abgelaufen, bitte manuell auf islandking.ch neu einloggen.');
+      return;
+    }
+    localStorage.setItem(LS_RELOAD_ATTEMPTS, String(attempts));
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
     location.reload();
   }
 
@@ -103,6 +115,7 @@
       if (res.status === 401) reloadOn401();
       throw new ApiError(res.status, body?.error || ('HTTP ' + res.status));
     }
+    localStorage.removeItem(LS_RELOAD_ATTEMPTS);
     return body;
   }
 

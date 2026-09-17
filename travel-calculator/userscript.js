@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.28
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch
+// @version      1.6.29
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -170,7 +170,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.28');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.29');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -522,11 +522,21 @@
   // unsichtbar. FIELD_STYLE isoliert unsere Felder komplett vom
   // Seiten-Theme.
   const FIELD_STYLE = 'background:var(--ikbm-field);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:4px';
+  // Nutzer-Report 2026-09-18: seit der responsiven Panel-Breite (clamp())
+  // wurde die Zeile bei langen Einheitennamen ("mächtiges Piratenschiff")
+  // manchmal zu schmal fuer Name+Input+✕ zusammen - ohne flex:none auf der
+  // Steuerelement-Spanne durfte Flexbox sie (und damit das Input) schrumpfen,
+  // je nach Namenslaenge unterschiedlich stark. flex:none haelt die Spanne
+  // (und ihr Input) IMMER bei 70px; stattdessen darf jetzt der Name-Span
+  // schrumpfen/abschneiden (min-width:0 + ellipsis noetig, sonst verhindert
+  // Flexbox' Default-min-width:auto das Schrumpfen ueberhaupt).
+  const ROW_NAME_STYLE = 'opacity:.85;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  const ROW_CONTROLS_STYLE = 'display:flex;align-items:center;gap:4px;flex:none';
   function unitRow(prefix, u, extra, clearable) {
     const key = prefix + ':' + u.name;
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
-      + '<span style="opacity:.85">' + u.name + (extra || '') + '</span>'
-      + '<span style="display:flex;align-items:center;gap:4px">'
+      + '<span style="' + ROW_NAME_STYLE + '" title="' + u.name + '">' + u.name + (extra || '') + '</span>'
+      + '<span style="' + ROW_CONTROLS_STYLE + '">'
       + '<input type="number" min="0" value="0" data-ikcc-unit="' + key + '" style="width:70px;box-sizing:border-box;' + FIELD_STYLE + '">'
       + (clearable ? '<span data-ikcc-clear="' + key + '" title="Leeren" style="cursor:pointer;opacity:.5;font-size:12px">✕</span>' : '')
       + '</span>'
@@ -536,13 +546,13 @@
   function buildingRow(b) {
     if (b.fixed) {
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
-        + '<span style="opacity:.85">' + b.name + '</span>'
-        + '<input type="checkbox" data-ikcc-bldg-fixed="' + b.name + '">'
+        + '<span style="' + ROW_NAME_STYLE + '" title="' + b.name + '">' + b.name + '</span>'
+        + '<input type="checkbox" data-ikcc-bldg-fixed="' + b.name + '" style="flex:none">'
         + '</div>';
     }
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
-      + '<span style="opacity:.85">' + b.name + ' (Lv)</span>'
-      + '<input type="number" min="0" max="50" value="0" data-ikcc-bldg-lv="' + b.name + '" style="width:70px;box-sizing:border-box;' + FIELD_STYLE + '">'
+      + '<span style="' + ROW_NAME_STYLE + '" title="' + b.name + ' (Lv)">' + b.name + ' (Lv)</span>'
+      + '<input type="number" min="0" max="50" value="0" data-ikcc-bldg-lv="' + b.name + '" style="width:70px;flex:none;box-sizing:border-box;' + FIELD_STYLE + '">'
       + '</div>';
   }
 

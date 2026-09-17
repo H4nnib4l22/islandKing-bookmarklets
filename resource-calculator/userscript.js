@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.3.1
-// @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch
+// @version      1.3.2
+// @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -42,7 +42,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.3.1';
+  const VERSION = 'v1.3.2';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -160,13 +160,27 @@
   // nicht gegenseitig ueberholen.
   const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
   const RELOAD_COOLDOWN_MS = 60000;
+  // Nutzer-Report 2026-09-18: der Cooldown allein verhinderte nur schnelle
+  // Reload-Schleifen, nicht den DAUERHAFTEN Fall (Session wirklich
+  // abgelaufen) - dann reloadete die Seite unbegrenzt weiter, alle 60s.
+  // Gemeinsamer Versuchszaehler ueber ALLE Panels: nach RELOAD_ATTEMPTS_MAX
+  // erfolglosen Versuchen wird aufgegeben statt endlos weiterzureloaden.
+  const LS_RELOAD_ATTEMPTS = 'ikbm_reloadAttempts';
+  const RELOAD_ATTEMPTS_MAX = 5;
   function guardedReload() {
     const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
     if (Date.now() - last < RELOAD_COOLDOWN_MS) {
       logDebug('reload-skip-cooldown', { msRemaining: RELOAD_COOLDOWN_MS - (Date.now() - last) });
       return;
     }
-    logDebug('reload', {});
+    const attempts = (Number(localStorage.getItem(LS_RELOAD_ATTEMPTS)) || 0) + 1;
+    if (attempts > RELOAD_ATTEMPTS_MAX) {
+      logDebug('reload-cap-reached', { attempts });
+      console.warn('[Islandking] Automatischer Reload nach ' + RELOAD_ATTEMPTS_MAX + ' erfolglosen Versuchen gestoppt - Session vermutlich abgelaufen, bitte manuell auf islandking.ch neu einloggen.');
+      return;
+    }
+    localStorage.setItem(LS_RELOAD_ATTEMPTS, String(attempts));
+    logDebug('reload', { attempts });
     localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
     location.reload();
   }
@@ -181,10 +195,11 @@
 
   const authFetch = (url) => pageFetch(url, { headers: { Authorization: 'Bearer ' + token } }).then(r => {
     if (!r.ok) {
-      if (r.status === 401) reloadOn401(); else consecutive401 = 0;
+      if (r.status === 401) reloadOn401(); else { consecutive401 = 0; localStorage.removeItem(LS_RELOAD_ATTEMPTS); }
       throw new Error('HTTP ' + r.status + ' bei ' + url);
     }
     consecutive401 = 0;
+    localStorage.removeItem(LS_RELOAD_ATTEMPTS);
     return r.json();
   });
 

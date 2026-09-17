@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.6
-// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch
+// @version      1.1.7
+// @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -47,7 +47,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.6';
+  const VERSION = 'v1.1.7';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -211,16 +211,33 @@
   // reiner Timer kann den tatsaechlichen Token-Ablauf verpassen. Cooldown
   // per localStorage verhindert eine Reload-Schleife, falls die API
   // dauerhaft 401 liefert (z.B. echter Logout statt nur abgelaufener Token).
-  const LS_LAST_AUTH_RELOAD = 'iksr_lastAuthReload';
+  // Gemeinsame Keys mit ALLEN Panel-Scripts (statt eigenem iksr_-Key) -
+  // zaehlt so in denselben Versuchs-Topf wie Allianz Status/Ressourcenrechner
+  // statt unabhaengig danebenzureloaden.
+  const LS_LAST_PANEL_RELOAD = 'ikbm_lastPanelReload';
   const AUTH_RELOAD_COOLDOWN_MS = 30000;
+  // Nutzer-Report 2026-09-18: der Cooldown allein verhinderte nur schnelle
+  // Reload-Schleifen, nicht den DAUERHAFTEN Fall (Session wirklich
+  // abgelaufen) - dann reloadete die Seite unbegrenzt weiter. Gemeinsamer
+  // Versuchszaehler ueber ALLE Panels: nach RELOAD_ATTEMPTS_MAX erfolglosen
+  // Versuchen wird aufgegeben statt endlos weiterzureloaden.
+  const LS_RELOAD_ATTEMPTS = 'ikbm_reloadAttempts';
+  const RELOAD_ATTEMPTS_MAX = 5;
   function reloadOn401() {
-    const last = Number(localStorage.getItem(LS_LAST_AUTH_RELOAD)) || 0;
+    const last = Number(localStorage.getItem(LS_LAST_PANEL_RELOAD)) || 0;
     if (Date.now() - last < AUTH_RELOAD_COOLDOWN_MS) {
       logDebug('reload-skip-cooldown', { msRemaining: AUTH_RELOAD_COOLDOWN_MS - (Date.now() - last) });
       return;
     }
-    logDebug('reload', {});
-    localStorage.setItem(LS_LAST_AUTH_RELOAD, String(Date.now()));
+    const attempts = (Number(localStorage.getItem(LS_RELOAD_ATTEMPTS)) || 0) + 1;
+    if (attempts > RELOAD_ATTEMPTS_MAX) {
+      logDebug('reload-cap-reached', { attempts });
+      console.warn('[Islandking] Automatischer Reload nach ' + RELOAD_ATTEMPTS_MAX + ' erfolglosen Versuchen gestoppt - Session vermutlich abgelaufen, bitte manuell auf islandking.ch neu einloggen.');
+      return;
+    }
+    localStorage.setItem(LS_RELOAD_ATTEMPTS, String(attempts));
+    logDebug('reload', { attempts });
+    localStorage.setItem(LS_LAST_PANEL_RELOAD, String(Date.now()));
     location.reload();
   }
 
@@ -240,6 +257,7 @@
       if (res.status === 401) reloadOn401();
       throw new ApiError(res.status, body?.error || ('HTTP ' + res.status));
     }
+    localStorage.removeItem(LS_RELOAD_ATTEMPTS);
     return body;
   }
 
