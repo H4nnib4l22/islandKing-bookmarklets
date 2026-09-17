@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.30
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, Seite (links/rechts) frei wählbar, Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
+// @version      1.6.31
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -170,7 +170,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.30');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.31');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -230,18 +230,30 @@
     });
   }
 
+  // Positionsmodus (v1.6.31, Nutzerwunsch): Zahnrad-Menue mit "Feste
+  // Position" (Standard, automatisches Stapeln wie bisher) und "Frei
+  // verschiebbar" (per Titelzeile ziehen, Position wird gemerkt). Im freien
+  // Modus verliert das Panel sein data-ikbm-side ("free" statt "left"/
+  // "right"), damit computeStackTop() es bei ANDEREN Panels nicht mehr als
+  // Stapel-Nachbarn mitzaehlt (dessen Bounding-Box waere durch das Ziehen ja
+  // beliebig) - beim Zurueckwechseln auf "Feste Position" wird die zuletzt
+  // bekannte Seite wiederhergestellt.
   function createPanel(id, title, width, defaultSide, bodyHtml) {
     title = title + VERSION_HTML;
     const sideKey = 'ikbm-side-' + id;
     const collapsedKey = 'ikbm-collapsed-' + id;
+    const posModeKey = 'ikbm-posmode-' + id;
+    const posKey = 'ikbm-pos-' + id;
     const side = readPref(sideKey, defaultSide);
     const collapsed = readPref(collapsedKey, '0') === '1';
+    let posMode = readPref(posModeKey, 'fixed');
+    let fixedSide = side;
     const seq = nextPanelSeq();
 
     const panel = document.createElement('div');
     panel.id = id;
     panel.dataset.ikbmPanel = '1';
-    panel.dataset.ikbmSide = side;
+    panel.dataset.ikbmSide = posMode === 'free' ? 'free' : side;
     panel.dataset.ikbmSeq = seq;
     // display:flex;flex-direction:column statt overflow:auto direkt auf dem
     // Panel: Header bleibt so als eigenes Flex-Item fix sichtbar, nur der
@@ -259,19 +271,29 @@
       + 'background:var(--ikbm-bg);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
     applyIkbmTheme(panel);
-    panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;position:relative;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
       + '<span style="display:flex;gap:10px;align-items:center">'
       + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
+      + '<span data-role="gear" title="Positionsmodus einstellen" style="cursor:pointer;opacity:.7">⚙️</span>'
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
-      + '</span></div>'
+      + '</span>'
+      + '<div data-role="posmenu" style="display:none;position:absolute;top:20px;right:0;background:var(--ikbm-field);border:1px solid var(--ikbm-border);border-radius:6px;padding:4px;z-index:10;font-size:12px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.4)">'
+      + '<div data-role="posmenu-fixed" style="padding:4px 10px;cursor:pointer;border-radius:4px">📌 Feste Position</div>'
+      + '<div data-role="posmenu-free" style="padding:4px 10px;cursor:pointer;border-radius:4px">↔↕ Frei verschiebbar</div>'
+      + '</div>'
+      + '</div>'
       + '<div data-role="body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
     document.body.appendChild(panel);
 
     const header = panel.querySelector('[data-role="header"]');
     const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
     const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
+    const gearBtn = panel.querySelector('[data-role="gear"]');
+    const posMenu = panel.querySelector('[data-role="posmenu"]');
+    const posMenuFixed = panel.querySelector('[data-role="posmenu-fixed"]');
+    const posMenuFree = panel.querySelector('[data-role="posmenu-free"]');
     const sideToggle = panel.querySelector('[data-role="side-toggle"]');
     const closeBtn = panel.querySelector('[data-role="close"]');
     const body = panel.querySelector('[data-role="body"]');
@@ -286,14 +308,8 @@
       writePref(collapsedKey, next ? '1' : '0');
     });
 
-    sideToggle.addEventListener('click', () => {
-      const next = panel.dataset.ikbmSide === 'left' ? 'right' : 'left';
-      panel.dataset.ikbmSide = next;
-      sideToggle.title = 'Seite wechseln (aktuell: ' + (next === 'left' ? 'links' : 'rechts') + ')';
-      writePref(sideKey, next);
-    });
-
     function reposition() {
+      if (posMode === 'free') return; // Position gehoert dem Ziehen, nicht dem Auto-Stack.
       const s = panel.dataset.ikbmSide;
       const top = computeStackTop(s, seq);
       panel.style.top = top + 'px';
@@ -301,6 +317,87 @@
       else { panel.style.right = '20px'; panel.style.left = ''; }
       panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
     }
+
+    sideToggle.addEventListener('click', () => {
+      if (posMode === 'free') return; // im freien Modus reine Anzeige, siehe applyPosMode()
+      const next = panel.dataset.ikbmSide === 'left' ? 'right' : 'left';
+      fixedSide = next;
+      panel.dataset.ikbmSide = next;
+      sideToggle.title = 'Seite wechseln (aktuell: ' + (next === 'left' ? 'links' : 'rechts') + ')';
+      writePref(sideKey, next);
+    });
+
+    // Zahnrad-Menue: Klick oeffnet/schliesst, Klick ausserhalb schliesst.
+    gearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      posMenu.style.display = posMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', () => { posMenu.style.display = 'none'; });
+    posMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    function applyPosMode(mode) {
+      posMode = mode;
+      writePref(posModeKey, mode);
+      posMenu.style.display = 'none';
+      if (mode === 'free') {
+        panel.dataset.ikbmSide = 'free';
+        sideToggle.textContent = '↔↕';
+        sideToggle.title = 'Frei positionierbar - Titelzeile zum Verschieben ziehen';
+        sideToggle.style.cursor = 'default';
+        const saved = (() => { try { return JSON.parse(localStorage.getItem(posKey)); } catch { return null; } })();
+        const rect = panel.getBoundingClientRect();
+        const pos = saved || { x: rect.left, y: rect.top };
+        panel.style.left = pos.x + 'px';
+        panel.style.top = pos.y + 'px';
+        panel.style.right = '';
+        panel.style.maxHeight = 'calc(100vh - ' + pos.y + 'px - 20px)';
+      } else {
+        panel.dataset.ikbmSide = fixedSide;
+        sideToggle.textContent = '⇄';
+        sideToggle.title = 'Seite wechseln (aktuell: ' + (fixedSide === 'left' ? 'links' : 'rechts') + ')';
+        sideToggle.style.cursor = 'pointer';
+        reposition();
+      }
+    }
+    posMenuFixed.addEventListener('click', () => applyPosMode('fixed'));
+    posMenuFree.addEventListener('click', () => applyPosMode('free'));
+    if (posMode === 'free') applyPosMode('free');
+
+    // Ziehen per Titelzeile - nur im freien Modus aktiv. Schwelle von 4px
+    // trennt "Klick" (loest z.B. collapseToggle normal aus) von "Ziehen"
+    // (preventDefault verhindert nur Textmarkierung waehrend des Ziehens,
+    // der eigentliche Klick auf collapseToggle feuert bei reiner
+    // Mausdown+Mouseup-Sequenz ohne Bewegung ganz normal weiter).
+    let drag = null;
+    header.addEventListener('mousedown', (e) => {
+      if (posMode !== 'free') return;
+      const role = e.target.closest('[data-role]')?.dataset.role;
+      if (role === 'update-check' || role === 'gear' || role === 'side-toggle' || role === 'close' || role === 'posmenu' || role === 'posmenu-fixed' || role === 'posmenu-free') return;
+      const rect = panel.getBoundingClientRect();
+      drag = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top, moved: false };
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+      if (!drag.moved) return;
+      const x = Math.max(0, drag.origX + dx);
+      const y = Math.max(0, drag.origY + dy);
+      panel.style.left = x + 'px';
+      panel.style.top = y + 'px';
+      panel.style.right = '';
+      panel.style.maxHeight = 'calc(100vh - ' + y + 'px - 20px)';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!drag) return;
+      if (drag.moved) {
+        const rect = panel.getBoundingClientRect();
+        localStorage.setItem(posKey, JSON.stringify({ x: rect.left, y: rect.top }));
+      }
+      drag = null;
+    });
 
     return { panel, body, reposition, closeBtn };
   }
@@ -1167,7 +1264,7 @@
 
   // markiert per data-Attribut auf dem <li>, damit der 250ms-Poll
   // (repositionAll) denselben Bericht nicht wiederholt nachschlaegt.
-  // ikbm- statt ikcc-Praefix (v1.6.30): das Content-Addon-Userscript
+  // ikbm- statt ikcc-Praefix (v1.6.31): das Content-Addon-Userscript
   // bekommt dieselbe Funktion und muss dasselbe Markierungs-Attribut
   // respektieren, sonst annotieren beide Scripts denselben Bericht doppelt
   // (zweites "(TAG)" hinter dem Namen), falls beide gleichzeitig aktiv sind.
