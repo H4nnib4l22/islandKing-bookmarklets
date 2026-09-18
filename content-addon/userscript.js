@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.4
+// @version      1.6.5
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -545,6 +545,13 @@
       // zahlen bei knapper Spaltenbreite zu dicht gedraengt.
       costP.style.columnGap = '18px';
       costP.style.rowGap = '6px';
+      // Eigentliche Ursache des "wirkt uneben/passt nicht"-Eindrucks
+      // (Nutzer-Screenshot trotz gleicher Ziffernanzahl je Spalte): die
+      // Website nutzt eine proportionale Schrift, in der z.B. "9" breiter
+      // ist als "1" - gleich viele Ziffern ergeben also unterschiedlich
+      // breite Spalten. tabular-nums erzwingt einheitliche Ziffernbreite,
+      // live per Claude-in-Chrome als Ursache bestaetigt und gefixt.
+      costP.style.fontVariantNumeric = 'tabular-nums';
     }
     const haveSpans = Array.from(costP.querySelectorAll('span[data-ikba-stock]'));
     originalSpans.forEach((span, i) => {
