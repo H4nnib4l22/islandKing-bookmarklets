@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.1
+// @version      1.6.2
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -555,10 +555,13 @@
       if (!haveSpan) {
         haveSpan = document.createElement('span');
         haveSpan.dataset.ikbaStock = '1';
+        haveSpan.style.cssText = 'display:inline-flex;align-items:center;gap:4px';
+        haveSpan.appendChild(img.cloneNode(true));
+        haveSpan.appendChild(document.createTextNode(''));
         costP.appendChild(haveSpan);
       }
       haveSpan.style.color = have === null ? '' : (have < needed ? '#f87171' : '#4ade80');
-      haveSpan.textContent = have === null ? '?' : formatNum(have);
+      haveSpan.lastChild.textContent = have === null ? '?' : formatNum(have);
     });
   }
 
