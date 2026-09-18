@@ -90,6 +90,10 @@
     const other2 = document.getElementById('ikcc-panel');
     if (other) other.remove();
     if (other2) other2.remove();
+    // Positions-Menues haengen als eigene body-Elemente (kein Panel-Kind,
+    // siehe createPanel()) - reine ID-basierte Panel-Entfernung oben wuerde
+    // sie sonst bei jedem Re-Inject leaken.
+    document.querySelectorAll('[data-ikbm-posmenu-for="iktc-panel"], [data-ikbm-posmenu-for="ikcc-panel"]').forEach((el) => el.remove());
     return;
   }
 
@@ -136,6 +140,30 @@
     let maxBottom = 100;
     others.forEach((el) => { maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom); });
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
+  }
+
+  // Nutzer-Report 2026-09-18: frei positionierte Panels nehmen NICHT an
+  // computeStackTop() teil (sie haben kein data-ikbm-side mehr), koennen
+  // sich also beim Ausklappen ueber ein anderes Panel legen (fest ODER
+  // frei), das gerade zufaellig an derselben Stelle sitzt. Simpler
+  // Greedy-Fix statt echtem Bin-Packing: nach dem Ausklappen pruefen, ob
+  // die eigene Box irgendein anderes Panel ueberlappt, und falls ja, unter
+  // dessen Unterkante schieben - wiederholt (max. 6x), damit auch Ketten
+  // mehrerer ueberlappender Panels aufgeloest werden.
+  function avoidOverlap(panel) {
+    const GAP = 12;
+    for (let i = 0; i < 6; i++) {
+      const rect = panel.getBoundingClientRect();
+      const other = Array.from(document.querySelectorAll('[data-ikbm-panel]')).find((el) => {
+        if (el === panel) return false;
+        const r = el.getBoundingClientRect();
+        return rect.left < r.right && rect.right > r.left && rect.top < r.bottom && rect.bottom > r.top;
+      });
+      if (!other) break;
+      const newTop = Math.round(other.getBoundingClientRect().bottom + GAP);
+      panel.style.top = newTop + 'px';
+      panel.style.maxHeight = 'calc(100vh - ' + newTop + 'px - 20px)';
+    }
   }
 
   // Live an den Hell-/Dunkelmodus der Seite gekoppelt: islandking.ch
@@ -271,19 +299,14 @@
       + 'background:var(--ikbm-bg);color:var(--ikbm-text);border:1px solid var(--ikbm-border);border-radius:8px;'
       + 'font:13px/1.4 system-ui,sans-serif;padding:14px;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.5)';
     applyIkbmTheme(panel);
-    panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;position:relative;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
+    panel.innerHTML = '<div data-role="header" style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;' + (collapsed ? '' : 'margin-bottom:8px') + '">'
       + '<b data-role="collapse-toggle" style="cursor:pointer;user-select:none">' + (collapsed ? '▸' : '▾') + ' ' + title + '</b>'
       + '<span style="display:flex;gap:10px;align-items:center">'
       + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
       + '<span data-role="gear" title="Positionsmodus einstellen" style="cursor:pointer;opacity:.7">⚙️</span>'
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
-      + '</span>'
-      + '<div data-role="posmenu" style="display:none;position:absolute;top:20px;right:0;background:var(--ikbm-field);border:1px solid var(--ikbm-border);border-radius:6px;padding:4px;z-index:10;font-size:12px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.4)">'
-      + '<div data-role="posmenu-fixed" style="padding:4px 10px;cursor:pointer;border-radius:4px">📌 Feste Position</div>'
-      + '<div data-role="posmenu-free" style="padding:4px 10px;cursor:pointer;border-radius:4px">↔↕ Frei verschiebbar</div>'
-      + '</div>'
-      + '</div>'
+      + '</span></div>'
       + '<div data-role="body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
     document.body.appendChild(panel);
 
@@ -291,12 +314,25 @@
     const collapseToggle = panel.querySelector('[data-role="collapse-toggle"]');
     const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
     const gearBtn = panel.querySelector('[data-role="gear"]');
-    const posMenu = panel.querySelector('[data-role="posmenu"]');
-    const posMenuFixed = panel.querySelector('[data-role="posmenu-fixed"]');
-    const posMenuFree = panel.querySelector('[data-role="posmenu-free"]');
     const sideToggle = panel.querySelector('[data-role="side-toggle"]');
     const closeBtn = panel.querySelector('[data-role="close"]');
     const body = panel.querySelector('[data-role="body"]');
+
+    // Positions-Menue als eigenes body-Element statt Panel-Kind (Nutzer-
+    // Report 2026-09-18): das Panel hat overflow:hidden (fuer die runden
+    // Ecken), das schneidet ein absolut positioniertes Kind-Menue ab,
+    // sobald das Panel eingeklappt (= kurz) ist. Als position:fixed-Element
+    // auf Body-Ebene, am Zahnrad-Icon ausgerichtet, umgeht das die
+    // Beschneidung komplett.
+    const posMenu = document.createElement('div');
+    posMenu.dataset.ikbmPosmenuFor = id;
+    posMenu.style.cssText = 'display:none;position:fixed;background:var(--ikbm-field);border:1px solid var(--ikbm-border);color:var(--ikbm-text);border-radius:6px;padding:4px;z-index:1000000;font-size:12px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+    posMenu.innerHTML = '<div data-role="posmenu-fixed" style="padding:4px 10px;cursor:pointer;border-radius:4px">📌 Feste Position</div>'
+      + '<div data-role="posmenu-free" style="padding:4px 10px;cursor:pointer;border-radius:4px">↔↕ Frei verschiebbar</div>';
+    document.body.appendChild(posMenu);
+    applyIkbmTheme(posMenu);
+    const posMenuFixed = posMenu.querySelector('[data-role="posmenu-fixed"]');
+    const posMenuFree = posMenu.querySelector('[data-role="posmenu-free"]');
 
     updateCheckBtn.addEventListener('click', () => checkForUpdate(updateCheckBtn));
 
@@ -306,6 +342,10 @@
       collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + title;
       header.style.marginBottom = next ? '0' : '8px';
       writePref(collapsedKey, next ? '1' : '0');
+      // Nutzerwunsch: auch frei positionierte Panels sollen sich beim
+      // Ausklappen nicht auf ein anderes Panel legen - fest gestapelte
+      // Panels vermeiden das schon ueber computeStackTop().
+      if (!next && posMode === 'free') avoidOverlap(panel);
     });
 
     function reposition() {
@@ -327,10 +367,19 @@
       writePref(sideKey, next);
     });
 
-    // Zahnrad-Menue: Klick oeffnet/schliesst, Klick ausserhalb schliesst.
+    // Zahnrad-Menue: Klick oeffnet/schliesst (am Icon ausgerichtet), Klick
+    // ausserhalb schliesst.
     gearBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      posMenu.style.display = posMenu.style.display === 'none' ? 'block' : 'none';
+      if (posMenu.style.display === 'none') {
+        const rect = gearBtn.getBoundingClientRect();
+        posMenu.style.top = (rect.bottom + 4) + 'px';
+        posMenu.style.right = (window.innerWidth - rect.right - 10) + 'px';
+        posMenu.style.left = 'auto';
+        posMenu.style.display = 'block';
+      } else {
+        posMenu.style.display = 'none';
+      }
     });
     document.addEventListener('click', () => { posMenu.style.display = 'none'; });
     posMenu.addEventListener('click', (e) => e.stopPropagation());
@@ -342,7 +391,7 @@
       if (mode === 'free') {
         panel.dataset.ikbmSide = 'free';
         sideToggle.textContent = '↔↕';
-        sideToggle.title = 'Frei positionierbar - Titelzeile zum Verschieben ziehen';
+        sideToggle.title = 'Frei positionierbar - Panel zum Verschieben ziehen';
         sideToggle.style.cursor = 'default';
         const saved = (() => { try { return JSON.parse(localStorage.getItem(posKey)); } catch { return null; } })();
         const rect = panel.getBoundingClientRect();
@@ -363,16 +412,25 @@
     posMenuFree.addEventListener('click', () => applyPosMode('free'));
     if (posMode === 'free') applyPosMode('free');
 
-    // Ziehen per Titelzeile - nur im freien Modus aktiv. Schwelle von 4px
-    // trennt "Klick" (loest z.B. collapseToggle normal aus) von "Ziehen"
-    // (preventDefault verhindert nur Textmarkierung waehrend des Ziehens,
-    // der eigentliche Klick auf collapseToggle feuert bei reiner
-    // Mausdown+Mouseup-Sequenz ohne Bewegung ganz normal weiter).
+    // Ziehen ueberall auf dem Panel moeglich (Nutzerwunsch), nicht nur an
+    // der Titelzeile - nur im freien Modus aktiv. Ausschluss zweistufig:
+    // (1) echte Formularelemente/Links immer ausschliessen, sonst wuerde
+    // ein Klick ins Eingabefeld/auf einen Link nie den Fokus bekommen
+    // (preventDefault verhindert genau das). (2) alles mit cursor:pointer
+    // AUSSERHALB der Titelzeile ausschliessen - das ist im Seiteninhalt
+    // durchgaengig die Konvention fuer "hier ist etwas klickbar" (Tabs,
+    // Favoriten-Pin/Entfernen, Gruppen-Toggles) und darf keinen Drag
+    // ausloesen. Die Titelzeile (collapse-toggle/header-Hintergrund) bleibt
+    // Ausnahme, dort trennt die 4px-Schwelle Klick von Ziehen schon sauber.
+    // Die vier Header-Icons (Update/Zahnrad/Seite/Schliessen) sind eigene
+    // data-role-Werte und explizit ausgenommen.
     let drag = null;
-    header.addEventListener('mousedown', (e) => {
+    panel.addEventListener('mousedown', (e) => {
       if (posMode !== 'free') return;
       const role = e.target.closest('[data-role]')?.dataset.role;
-      if (role === 'update-check' || role === 'gear' || role === 'side-toggle' || role === 'close' || role === 'posmenu' || role === 'posmenu-fixed' || role === 'posmenu-free') return;
+      if (role === 'update-check' || role === 'gear' || role === 'side-toggle' || role === 'close') return;
+      if (e.target.closest('input, select, textarea, button, a, label')) return;
+      if (role !== 'collapse-toggle' && role !== 'header' && getComputedStyle(e.target).cursor === 'pointer') return;
       const rect = panel.getBoundingClientRect();
       drag = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top, moved: false };
       e.preventDefault();
@@ -399,7 +457,7 @@
       drag = null;
     });
 
-    return { panel, body, reposition, closeBtn };
+    return { panel, body, reposition, closeBtn, posMenu };
   }
 
   const SHIPS_LIST = [
@@ -740,7 +798,9 @@
   // Panels live, sobald applyIkbmTheme() sie neu setzt.
   const ikbmThemeObserver = new MutationObserver(() => {
     applyIkbmTheme(travel.panel);
+    applyIkbmTheme(travel.posMenu);
     applyIkbmTheme(combat.panel);
+    applyIkbmTheme(combat.posMenu);
   });
   ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
@@ -1335,6 +1395,6 @@
   repositionAll();
   const repositionHandle = setInterval(repositionAll, 250);
 
-  travel.closeBtn.onclick = () => { travel.panel.remove(); };
-  combat.closeBtn.onclick = () => { combat.panel.remove(); };
+  travel.closeBtn.onclick = () => { travel.panel.remove(); travel.posMenu.remove(); };
+  combat.closeBtn.onclick = () => { combat.panel.remove(); combat.posMenu.remove(); };
 })();
