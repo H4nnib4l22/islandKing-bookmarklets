@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.2
+// @version      1.6.3
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -553,15 +553,20 @@
         : null;
       let haveSpan = haveSpans[i];
       if (!haveSpan) {
+        // Gleiche Struktur wie der Original-Span (Icon + Textknoten mit
+        // fuehrendem Leerzeichen, KEIN display:inline-flex): inline-flex
+        // wird als Grid-Item anders behandelt als das originale inline
+        // <span> und verschiebt die Spalte um einen konstanten Betrag -
+        // live per Claude-in-Chrome gemessen (13-14px Versatz bei jeder
+        // Spalte, unabhaengig von der Ziffernanzahl).
         haveSpan = document.createElement('span');
         haveSpan.dataset.ikbaStock = '1';
-        haveSpan.style.cssText = 'display:inline-flex;align-items:center;gap:4px';
         haveSpan.appendChild(img.cloneNode(true));
         haveSpan.appendChild(document.createTextNode(''));
         costP.appendChild(haveSpan);
       }
       haveSpan.style.color = have === null ? '' : (have < needed ? '#f87171' : '#4ade80');
-      haveSpan.lastChild.textContent = have === null ? '?' : formatNum(have);
+      haveSpan.lastChild.textContent = ' ' + (have === null ? '?' : formatNum(have));
     });
   }
 
