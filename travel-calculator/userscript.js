@@ -14,9 +14,7 @@
 // ==/UserScript==
 
 /*
- * Islandking Reisezeitenrechner + Kampfrechner — Tampermonkey-Userscript
- * (baugleich zum Bookmarklet in diesem Ordner, nur oeffnet es sich
- * automatisch beim Laden der Seite statt per Klick).
+ * Islandking Reisezeitenrechner + Kampfrechner — Tampermonkey-Userscript.
  * Reisezeit: reine Koordinaten-Rechnung, 1:1 aus runStandaloneTravelCalc()
  * uebernommen. Kampf: 1:1 aus simulateCombatFull() im Schattenflotte
  * Taktischer Koordinator uebernommen (kontinuierlicher HP-Pool, 444/445
@@ -107,8 +105,8 @@
     try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
   }
 
-  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
-  // Userscripts (siehe Allianz Status/Ressourcenrechner): dockt je Seite
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Userscripts (siehe
+  // Allianz Status/Ressourcenrechner): dockt je Seite
   // unter das unterste bereits offene Panel derselben Seite an, egal aus
   // welchem Script — reine Messung der aktuellen Bounding-Box.
   //

@@ -1,5 +1,5 @@
-Islandking Reisezeitenrechner — Bookmarklet
-============================================
+Islandking Reisezeitenrechner — Tampermonkey-Userscript
+========================================================
 
 Was das ist
 -----------
@@ -24,34 +24,16 @@ Berechnung), rutscht dieses Panel live mit.
 
 Einrichtung
 -----------
-1. bookmarklet.js komplett öffnen und den kompletten Inhalt kopieren.
-2. Neues Lesezeichen im Browser anlegen, als Adresse einfügen:
-   javascript:(function(){...})()   ← "javascript:" direkt vor den
-   kopierten Code schreiben (ohne Leerzeichen dazwischen), Name z.B.
-   "Reisezeitenrechner".
-   Tipp: einfacher geht's mit dem PowerShell-Einzeiler unten, der das
-   automatisch für dich zusammenbaut.
-3. Auf islandking.ch das Lesezeichen anklicken - Panel öffnet sich rechts
-   unter dem Ressourcenrechner (falls offen). Erneutes Klicken schließt
-   es wieder.
+1. Tampermonkey-Erweiterung installieren (falls noch nicht vorhanden).
+2. Tampermonkey-Dashboard → "Neues Skript" → kompletten Inhalt von
+   userscript.js einfügen, speichern.
+3. Auf islandking.ch öffnet sich das Panel automatisch — rechts unter
+   dem Ressourcenrechner, falls der ebenfalls offen ist.
 
-PowerShell-Einzeiler (im Ordner dieser Datei, baut bookmarklet.url.txt):
-
-  $src = Get-Content -Raw -Encoding UTF8 bookmarklet.js
-  $encoded = [System.Uri]::EscapeDataString($src)
-  Set-Content -Path bookmarklet.url.txt -Value ("javascript:" + $encoded) -NoNewline -Encoding utf8
-
-Danach bookmarklet.url.txt öffnen, kompletten Inhalt als Lesezeichen-
-Adresse einfügen.
-
-Alternativ als Tampermonkey-Userscript: userscript.js öffnen, Inhalt
-kopieren, in Tampermonkey "Neues Script" einfügen, speichern — läuft
-dann automatisch auf jeder islandking.ch-Seite.
-
-Nur im Tampermonkey-Userscript (nicht im Bookmarklet): zweites Panel
-"⚔️ Kampfrechner", dockt standardmäßig direkt UNTER dem Reisezeiten-
-rechner an. Zwei Tabs mit derselben Kampfformel aus dem Schattenflotte
-Taktischer Koordinator (444/445 echte Kämpfe exakt getroffen):
+Bringt zweites Panel "⚔️ Kampfrechner" gleich mit, dockt standardmäßig
+direkt UNTER dem Reisezeitenrechner an. Zwei Tabs mit derselben
+Kampfformel aus dem Schattenflotte Taktischer Koordinator (444/445 echte
+Kämpfe exakt getroffen):
 
 - "PvP": Angreifer/Verteidiger-Stückzahlen für alle Schiffs- und
   Truppentypen eingeben, Verteidiger zusätzlich mit Verteidigungsanlagen
@@ -69,9 +51,8 @@ Der Reisezeitenrechner ist ein-/ausklappbar (▾/▸ auf die Überschrift
 klicken — Header bleibt immer sichtbar, darunter angedockte Panels
 rücken beim Ein-/Ausklappen automatisch nach) und hat rechts oben ein
 ⇄-Symbol zum Seitenwechsel (links/rechts andocken) — beides merkt sich
-der Browser (localStorage) über Reloads hinweg, im Bookmarklet genauso
-wie im Userscript. Nur der zusätzliche Kampfrechner (siehe oben) ist
-Tampermonkey-exklusiv; er dockt dabei immer unter den Reisezeitenrechner,
-sofern beide auf derselben Seite stehen — verschiebt man nur den
-Kampfrechner auf die andere Seite, steht er dort allein (bzw. unter
-einem anderen dort bereits offenen Panel wie Allianz Status).
+der Browser (localStorage) über Reloads hinweg. Der Kampfrechner dockt
+dabei immer unter den Reisezeitenrechner, sofern beide auf derselben
+Seite stehen — verschiebt man nur den Kampfrechner auf die andere Seite,
+steht er dort allein (bzw. unter einem anderen dort bereits offenen
+Panel wie Allianz Status).

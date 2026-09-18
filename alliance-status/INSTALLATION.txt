@@ -1,5 +1,5 @@
-Islandking Alliance Status — Bookmarklet
-=========================================
+Islandking Alliance Status — Tampermonkey-Userscript
+=====================================================
 
 Was das ist
 -----------
@@ -31,39 +31,23 @@ zuletzt beim Öffnen/Refresh online gesehen wurde (localStorage, überlebt
 Schließen/Neuöffnen des Panels, aber keine Server-Wahrheit). Genauigkeit =
 wie oft du das Panel offen hast bzw. der 60s-Auto-Refresh läuft.
 
-Öffnest du gleichzeitig ein zweites islandking.ch-Bookmarklet (z.B. den
+Öffnest du gleichzeitig ein weiteres Islandking-Panel-Userscript (z.B. den
 Ressourcenrechner), reihen sich die Panels sauber untereinander ein statt
 sich zu überlappen.
 
 Einrichtung
 -----------
-1. bookmarklet.js komplett öffnen und den kompletten Inhalt kopieren.
-2. Neues Lesezeichen im Browser anlegen, als Adresse einfügen:
-   javascript:(function(){...})()   ← also "javascript:" direkt vor den
-   kopierten Code schreiben (ohne Leerzeichen dazwischen), Name z.B.
-   "Allianz Status".
-   Tipp: einfacher geht's mit dem PowerShell-Einzeiler unten, der das
-   automatisch für dich zusammenbaut.
-3. Auf islandking.ch das Lesezeichen anklicken - Panel öffnet sich oben
-   rechts, aktualisiert sich automatisch alle 60s. Erneutes Klicken
-   schließt es wieder.
+1. Tampermonkey-Erweiterung installieren (falls noch nicht vorhanden).
+2. Tampermonkey-Dashboard → "Neues Skript" → kompletten Inhalt von
+   userscript.js einfügen, speichern.
+3. Auf islandking.ch öffnet sich das Panel automatisch, aktualisiert sich
+   selbstständig alle 60s.
 
-PowerShell-Einzeiler (im Ordner dieser Datei, baut bookmarklet.url.txt):
-
-  $src = Get-Content -Raw -Encoding UTF8 bookmarklet.js
-  $encoded = [System.Uri]::EscapeDataString($src)
-  Set-Content -Path bookmarklet.url.txt -Value ("javascript:" + $encoded) -NoNewline -Encoding utf8
-
-Danach bookmarklet.url.txt öffnen, kompletten Inhalt als Lesezeichen-
-Adresse einfügen.
-
-Kein Sicherheitshinweis zu Tokens nötig (anders als beim eingestampften
-GitHub-Bookmarklet-Versuch) - hier steckt kein eigener Zugangsschlüssel im
-Code, nur dein ganz normaler islandking.ch-Login wird mitverwendet.
+Kein Sicherheitshinweis zu Tokens nötig - hier steckt kein eigener
+Zugangsschlüssel im Code, nur dein ganz normaler islandking.ch-Login wird
+mitverwendet.
 
 Header ist ein-/ausklappbar (▾/▸ auf die Überschrift klicken — bleibt immer
 sichtbar, darunter angedockte Panels rücken automatisch nach) und hat
-rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts andocken).
-Beide Einstellungen merkt sich der Browser (localStorage) über
-Reloads hinweg — gilt für Bookmarklet und Tampermonkey-Userscript
-gleichermaßen.
+rechts oben ein ⇄-Symbol zum Seitenwechsel (links/rechts andocken). Beide
+Einstellungen merkt sich der Browser (localStorage) über Reloads hinweg.

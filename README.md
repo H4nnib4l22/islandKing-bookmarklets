@@ -1,11 +1,9 @@
 # Islandking Bookmarklets
 
-Fünf Browser-Add-ons für islandking.ch, die meisten wahlweise als
-Bookmarklet (Klick zum Öffnen, kein Install) oder als Tampermonkey-
-Userscript (öffnet automatisch beim Laden der Seite, kein Copy-Paste bei
-jeder Änderung mehr nötig). Alle Varianten laufen same-origin direkt in
-der Seite — Allianz Status, Ressourcenrechner und Spy Report Lookup mit
-deinem eigenen Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
+Fünf Tampermonkey-Userscripts für islandking.ch (öffnen automatisch beim
+Laden der Seite). Alle laufen same-origin direkt in der Seite — Allianz
+Status, Ressourcenrechner und Spy Report Lookup mit deinem eigenen
+Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
 
 - **Allianz Status** (`alliance-status/`) — Overlay-Panel mit Online-Status
   und "zuletzt online" für alle Allianzmitglieder, Favoriten, eine eigene
@@ -23,9 +21,8 @@ deinem eigenen Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   Bauzeit und Ansparzeit aus Lager + Produktion berechnet.
 - **Reisezeitenrechner** (`travel-calculator/`) — Overlay-Panel, das aus
   zwei Koordinaten Distanz, Fahrtzeit und ETA für alle Schiffstypen
-  berechnet. Reine Rechnerei ohne API/Token/Netzwerk. Nur im
-  Tampermonkey-Userscript (nicht im Bookmarklet) zusätzlich mit einem
-  eigenen **⚔️ Kampfrechner**-Panel darunter — volle Kampfformel aus dem
+  berechnet. Reine Rechnerei ohne API/Token/Netzwerk. Bringt zusätzlich
+  ein eigenes **⚔️ Kampfrechner**-Panel darunter mit — volle Kampfformel aus dem
   Schattenflotte Taktischer Koordinator (444/445 echte Kämpfe exakt), mit
   zwei Tabs: **PvP** (Angreifer/Verteidiger-Stückzahlen für alle Schiffs-
   und Truppentypen sowie Verteidigungsanlagen) und **Konvoi entern** (nur
@@ -34,9 +31,8 @@ deinem eigenen Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   Karten-Popup eines Piraten-Konvois erscheint zusätzlich ein **"An
   Kampfrechner senden"**-Button, der dessen Schiffstypen+Anzahl direkt in
   den Konvoi-entern-Tab überträgt — nur sichtbar, solange das Popup offen ist.
-- **Content Addon** (`content-addon/`) — nur Tampermonkey (kein
-  Bookmarklet, da die betroffenen Seiten Single-Page-Apps sind). Sammlung
-  kleiner Komfort-Erweiterungen: je ein Ein/Aus-Schalter über die
+- **Content Addon** (`content-addon/`) — Sammlung kleiner
+  Komfort-Erweiterungen: je ein Ein/Aus-Schalter über die
   Gebäudeliste der Inselseite und über die Forschungsliste, die bereits
   maximierte Gebäude/Forschungen ausblenden (standardmäßig beide aktiv);
   auf der Kaserne-Seite Schnell-Buttons (+5/+10/+20/+50/+100, summieren
@@ -53,22 +49,20 @@ deinem eigenen Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   Heimatinsel, ebenfalls fertig formatiert. Eigenes Bearer-Token, kein
   GitHub-Token, kein externes Datenrepo.
 
-Alle fünf Panels (alle vier Tampermonkey-Userscripts zusammen) erkennen
-sich gegenseitig, sind ein-/ausklappbar (Header bleibt sichtbar) und
-haben ein ⇄-Symbol zum Seitenwechsel links/rechts — beides merkt sich
-der Browser pro Panel über Reloads hinweg. Sie stapeln sich dabei immer
-überlappungsfrei nach Erzeugungsreihenfolge: dockt ein Panel um oder
-klappt es ein/aus, rücken alle NACH ihm erzeugten, gleichseitigen
-Panels automatisch nach — unabhängig davon, welches Script sie erzeugt
-hat oder auf welcher Seite sie gerade stehen.
+Alle vier Panel-Userscripts erkennen sich gegenseitig, sind
+ein-/ausklappbar (Header bleibt sichtbar) und haben ein ⇄-Symbol zum
+Seitenwechsel links/rechts — beides merkt sich der Browser pro Panel
+über Reloads hinweg. Sie stapeln sich dabei immer überlappungsfrei nach
+Erzeugungsreihenfolge: dockt ein Panel um oder klappt es ein/aus, rücken
+alle NACH ihm erzeugten, gleichseitigen Panels automatisch nach —
+unabhängig davon, welches Script sie erzeugt hat oder auf welcher Seite
+sie gerade stehen.
 
-**Bookmarklet-Installation:** siehe `INSTALLATION.txt` im jeweiligen
-Unterordner, oder komplettes Bundle als `islandking-bookmarklets.zip`.
-
-**Tampermonkey-Installation:** Tampermonkey-Extension installieren, dann
-`userscript.js` (im jeweiligen Unterordner) öffnen, kompletten Inhalt
-kopieren, in Tampermonkey auf "Neues Script" klicken und einfügen,
-speichern. Danach läuft das Panel automatisch auf jeder
-islandking.ch-Seite. Dank `@updateURL` schlägt Tampermonkey künftige
-Versionen (von diesem GitHub-Repo) selbst vor, sobald sich `@version`
+**Installation:** siehe `INSTALLATION.txt` im jeweiligen Unterordner,
+oder kurz: Tampermonkey-Extension installieren, dann `userscript.js` (im
+jeweiligen Unterordner) öffnen, kompletten Inhalt kopieren, in
+Tampermonkey auf "Neues Script" klicken und einfügen, speichern. Danach
+läuft das Panel automatisch auf jeder islandking.ch-Seite. Dank
+`@updateURL` schlägt Tampermonkey künftige Versionen (von Greasy Fork,
+synchronisiert aus diesem GitHub-Repo) selbst vor, sobald sich `@version`
 in der Datei erhöht.

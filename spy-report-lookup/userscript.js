@@ -14,14 +14,12 @@
 // ==/UserScript==
 
 /*
- * Islandking Spy Report Lookup — Tampermonkey-Userscript (baugleich zum
- * Bookmarklet in diesem Ordner, nur oeffnet es sich automatisch beim Laden
- * der Seite statt per Klick).
+ * Islandking Spy Report Lookup — Tampermonkey-Userscript.
  *
  * Portierung der gleichnamigen Browser-Extension (siehe
  * plugins/islandking-spy-report-lookup-chrome_opera/content.js) als
  * eigenstaendiges Overlay-Panel, damit sie sich wie alle anderen
- * islandking.ch-Bookmarklets/-Userscripts in diesem Repo verhaelt:
+ * islandking.ch-Userscripts in diesem Repo verhaelt:
  * ein-/ausklappbar, Seite frei waehlbar, reiht sich unter andere offene
  * Panels ein. Funktional 1:1 identisch zur Extension (gleiche API-Calls,
  * gleiches formatReport()), nur ohne die Popup/Content-Script-Aufteilung -
@@ -58,8 +56,8 @@
     try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
   }
 
-  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
-  // Userscripts: dockt je Seite unter das unterste bereits offene Panel
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Userscripts: dockt
+  // je Seite unter das unterste bereits offene Panel
   // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
   // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
   // (ikbmWindow.__ikbmSeq, geteilt ueber ALLE Scripts hinweg). Beim

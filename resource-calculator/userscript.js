@@ -14,9 +14,7 @@
 // ==/UserScript==
 
 /*
- * Islandking Ressourcenrechner — Tampermonkey-Userscript (baugleich zum
- * Bookmarklet in diesem Ordner, nur oeffnet es sich automatisch beim
- * Laden der Seite statt per Klick).
+ * Islandking Ressourcenrechner — Tampermonkey-Userscript.
  * Nutzt den vorhandenen /api/islands/:id/tech-path Endpoint, der bereits die
  * volle Voraussetzungskette (Gebäude/Forschung/Schiff) inkl. Gesamtkosten
  * und Bauzeit liefert — wir rechnen nur noch die Ansparzeit aus Lager +
@@ -104,7 +102,7 @@
   }
 
   const token = localStorage.getItem('access_token');
-  // Kein alert() hier (anders als beim Bookmarklet): das Script laeuft
+  // Kein alert() hier: das Script laeuft
   // automatisch auf JEDER islandking.ch-Seite, ein Popup bei jedem
   // Aufruf ohne Login waere nur noch nervig. Panel oeffnet sich einfach
   // erst, sobald ein Token da ist (naechster Seitenaufruf nach Login).
@@ -233,8 +231,8 @@
     try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
   }
 
-  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
-  // Userscripts: dockt je Seite unter das unterste bereits offene Panel
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Userscripts: dockt
+  // je Seite unter das unterste bereits offene Panel
   // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
   // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
   // (ikbmWindow.__ikbmSeq, geteilt ueber ALLE Scripts hinweg). Beim

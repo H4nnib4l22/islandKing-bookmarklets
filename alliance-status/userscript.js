@@ -14,9 +14,7 @@
 // ==/UserScript==
 
 /*
- * Islandking Alliance Status — Tampermonkey-Userscript (baugleich zum
- * Bookmarklet in diesem Ordner, nur oeffnet es sich automatisch beim
- * Laden der Seite statt per Klick).
+ * Islandking Alliance Status — Tampermonkey-Userscript.
  *
  * Nutzt ausschliesslich islandking.chs EIGENE API (same-origin) statt eines
  * externen GitHub-Datenrepos - die CSP der Seite (connect-src 'self')
@@ -283,8 +281,7 @@
     try { localStorage.setItem(key, val); } catch (e) { /* privater Modus o.ae. — Praeferenz einfach nicht gemerkt */ }
   }
 
-  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Bookmarklets/-
-  // Userscripts: dockt je Seite unter das unterste bereits offene Panel
+  // Gemeinsame Stapel-Konvention ALLER islandking.ch-Userscripts: dockt je Seite unter das unterste bereits offene Panel
   // derselben Seite an. Seq-basiert statt "alle anderen derselben Seite":
   // jedes Panel bekommt beim Erzeugen eine fortlaufende Nummer
   // (ikbmWindow.__ikbmSeq, geteilt ueber ALLE Scripts hinweg). Beim
