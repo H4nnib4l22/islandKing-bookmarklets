@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.7.0
+// @version      1.7.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -612,46 +612,51 @@
   }
 
   // -------------------------------------------------------------------
-  // Button-Beschriftung bei laufendem Bau/laufender Forschung (Feature 8,
-  // v1.7.0). Live verifiziert 2026-09-18: waehrend ein Eintrag laeuft, sind
-  // alle Buttons disabled, der laufende traegt aber weiter "Erforschen → N"
-  // (Forschung) bzw. ersetzt die Site ihn nur teils durch "🏗 wird
-  // ausgebaut". Laufende Eintraege kommen aus den schon genutzten
-  // Endpunkten (research-overview.researchQueueItems bzw. island-overview.
-  // buildQueueItems); Zuordnung zur Zeile ueber "<Name> Stufe <Ziel-1> von".
+  // Laufende Forschung wie laufender Ausbau darstellen (Feature 8, v1.7.1).
+  // Die Gebaeudeliste ersetzt bei laufendem Ausbau selbst den Button durch
+  // <p class="text-xs font-medium text-ocean-500">🏗 wird ausgebaut</p>
+  // (IslandView-Bundle, `e.inProgress`). Die Forschungsliste tut das nicht:
+  // der laufende Eintrag behaelt seinen (disabled) "Erforschen → N"-Button.
+  // Hier wird er analog ausgeblendet (samt Kosten-Zeile) und durch den
+  // gleichen Text-Stil "🔬 wird erforscht" ersetzt. Laufende Forschung aus
+  // research-overview.researchQueueItems, Zuordnung ueber "<Name> Stufe
+  // <Ziel-1> von".
   // -------------------------------------------------------------------
 
-  async function runningItems() {
-    if (location.pathname === '/research') {
-      const r = await fetchResearchOverviewCached();
-      return { verb: 'Wird erforscht', levels: new Map(((r && r.researchQueueItems) || []).map((q) => [q.researchName, q.targetLevel])) };
-    }
-    if (location.pathname.startsWith('/island/')) {
-      return { verb: 'Wird gebaut', levels: await fetchIslandLevels(location.pathname.split('/')[2]) };
-    }
-    return null;
-  }
-
-  function tickRunningLabels() {
-    const relevant = SECTIONS.map(findSection).filter(Boolean);
-    if (!relevant.length) return;
-    runningItems().then((running) => {
-      if (!running) return;
-      relevant.forEach(({ ul }) => {
-        Array.from(ul.children).forEach((li) => {
-          const btn = li.querySelector('button');
-          if (!btn) return;
-          for (const [name, target] of running.levels) {
-            if (li.textContent.includes(name + ' Stufe ' + (target - 1) + ' von')) {
-              if (btn.textContent.trim() !== running.verb) btn.textContent = running.verb;
-              return;
-            }
+  function tickRunningResearch() {
+    if (location.pathname !== '/research') return;
+    const section = findSection(SECTIONS[1]);
+    if (!section) return;
+    fetchResearchOverviewCached().then((r) => {
+      const running = ((r && r.researchQueueItems) || []).map((q) => q.researchName + ' Stufe ' + (q.targetLevel - 1) + ' von');
+      Array.from(section.ul.children).forEach((li) => {
+        const btn = li.querySelector('button');
+        const marker = li.querySelector('[data-ikba-running]');
+        const isRunning = running.some((key) => li.textContent.includes(key));
+        if (!isRunning) {
+          if (marker) { marker.remove(); }
+          if (btn && btn.dataset.ikbaHidden) {
+            btn.style.display = '';
+            if (btn.nextElementSibling) btn.nextElementSibling.style.display = '';
+            delete btn.dataset.ikbaHidden;
           }
-        });
+          return;
+        }
+        if (!btn) return;
+        btn.dataset.ikbaHidden = '1';
+        btn.style.display = 'none';
+        if (btn.nextElementSibling && !btn.nextElementSibling.dataset.ikbaRunning) btn.nextElementSibling.style.display = 'none';
+        if (!marker) {
+          const p = document.createElement('p');
+          p.dataset.ikbaRunning = '1';
+          p.className = 'text-xs font-medium text-ocean-500';
+          p.textContent = '🔬 wird erforscht';
+          btn.insertAdjacentElement('beforebegin', p);
+        }
       });
     });
   }
 
   tick();
-  setInterval(() => { tick(); tickRunningLabels(); }, 500);
+  setInterval(() => { tick(); tickRunningResearch(); }, 500);
 })();
