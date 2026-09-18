@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.10
+// @version      1.2.0
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -45,7 +45,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.10';
+  const VERSION = 'v1.2.0';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -357,10 +357,12 @@
   const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
   const POSMODE_KEY = 'ikbm-posmode-' + PANEL_ID;
   const POS_KEY = 'ikbm-pos-' + PANEL_ID;
+  const MINIMIZED_KEY = 'ikbm-minimized-' + PANEL_ID;
   const side = readPref(SIDE_KEY, 'right');
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   let posMode = readPref(POSMODE_KEY, 'fixed');
   let fixedSide = side;
+  let minimized = readPref(MINIMIZED_KEY, '0') === '1';
   const seq = nextPanelSeq();
   const TITLE_HTML = '🔎 Spy Report Lookup <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
@@ -385,6 +387,7 @@
     + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
     + '<span data-role="gear" title="Positionsmodus einstellen" style="cursor:pointer;opacity:.7">⚙️</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+    + '<span data-role="minimize" title="In die Menüleiste legen" style="cursor:pointer;opacity:.7">⬇</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
     + '<div data-role="body" id="iksr-body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>'
@@ -411,6 +414,7 @@
   const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
   const gearBtn = panel.querySelector('[data-role="gear"]');
   const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+  const minimizeBtn = panel.querySelector('[data-role="minimize"]');
   const closeBtn = panel.querySelector('[data-role="close"]');
   const body = panel.querySelector('[data-role="body"]');
 
@@ -442,6 +446,7 @@
   });
 
   function reposition() {
+    if (minimized) return;
     if (posMode === 'free') { if (!drag) avoidFixedOverlap(); return; }
     const s = panel.dataset.ikbmSide;
     const top = computeStackTop(s, seq);
@@ -450,6 +455,56 @@
     else { panel.style.right = '20px'; panel.style.left = ''; }
     panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
   }
+
+  // Nutzerwunsch 2026-09-18: Panels sollen sich in die islandking.ch-
+  // Menueleiste "minimieren" lassen, rechts neben den Nutzernamen - siehe
+  // Allianz Status fuer die ausfuehrliche Begruendung des Ankers (DE/EN-
+  // Sprachumschalter-Span, live per Claude-in-Chrome verifiziert).
+  function findNavbarAnchor() {
+    const span = Array.from(document.querySelectorAll('span')).find(
+      (s) => s.className.includes('overflow-hidden') && s.textContent.trim() === 'DEEN'
+    );
+    return span ? span.parentElement : null;
+  }
+  function ensureNavbarTray() {
+    let tray = document.getElementById('ikbm-navbar-tray');
+    if (tray) return tray;
+    const anchor = findNavbarAnchor();
+    if (!anchor) return null;
+    tray = document.createElement('div');
+    tray.id = 'ikbm-navbar-tray';
+    tray.style.cssText = 'display:flex;align-items:center;gap:2px';
+    anchor.appendChild(tray);
+    return tray;
+  }
+  let navIcon = null;
+  function ensureNavIcon() {
+    if (navIcon) return;
+    const tray = ensureNavbarTray();
+    if (!tray) return;
+    navIcon = document.createElement('button');
+    navIcon.type = 'button';
+    navIcon.title = 'Spy Report Lookup (minimiert) - Klick zum Wiederherstellen';
+    navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+    navIcon.textContent = '🔍';
+    navIcon.addEventListener('click', restorePanel);
+    tray.appendChild(navIcon);
+  }
+  function minimizePanel() {
+    minimized = true;
+    writePref(MINIMIZED_KEY, '1');
+    panel.style.display = 'none';
+    ensureNavIcon();
+    if (navIcon) navIcon.style.display = 'inline-flex';
+  }
+  function restorePanel() {
+    minimized = false;
+    writePref(MINIMIZED_KEY, '0');
+    panel.style.display = 'flex';
+    if (navIcon) navIcon.style.display = 'none';
+    reposition();
+  }
+  minimizeBtn.addEventListener('click', minimizePanel);
 
   // Nutzer-Report 2026-09-18: nach dem Wechsel auf "Frei verschiebbar"
   // bleibt das Panel an seiner alten (fest gestapelten) Stelle stehen -
@@ -561,13 +616,19 @@
     drag = null;
   });
 
-  reposition();
+  if (minimized) {
+    panel.style.display = 'none';
+    ensureNavIcon();
+    if (navIcon) navIcon.style.display = 'inline-flex';
+  } else {
+    reposition();
+  }
   const repositionHandle = setInterval(reposition, 250);
   // Reagiert auf einen Theme-Wechsel OHNE Reload (kein Navigations-Event
   // dabei) - siehe Kommentar bei IKBM_THEMES weiter oben.
   const ikbmThemeObserver = new MutationObserver(() => { applyIkbmTheme(panel); applyIkbmTheme(posMenu); });
   ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-  panel.__iksrCleanup = () => { clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); posMenu.remove(); };
+  panel.__iksrCleanup = () => { clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); posMenu.remove(); if (navIcon) navIcon.remove(); };
   closeBtn.onclick = () => { panel.__iksrCleanup(); panel.remove(); };
 
   const style = document.createElement('style');

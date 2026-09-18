@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.27
+// @version      1.6.28
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar (Einklappen jetzt zuverlässig, alter CSS-Konflikt behoben), per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -378,10 +378,12 @@
   const COLLAPSED_KEY = 'ikbm-collapsed-' + PANEL_ID;
   const POSMODE_KEY = 'ikbm-posmode-' + PANEL_ID;
   const POS_KEY = 'ikbm-pos-' + PANEL_ID;
+  const MINIMIZED_KEY = 'ikbm-minimized-' + PANEL_ID;
   const side = readPref(SIDE_KEY, 'left');
   const collapsed = readPref(COLLAPSED_KEY, '0') === '1';
   let posMode = readPref(POSMODE_KEY, 'fixed');
   let fixedSide = side;
+  let minimized = readPref(MINIMIZED_KEY, '0') === '1';
   const seq = nextPanelSeq();
 
   // v1.6.13: zurueck auf feste Hoehe (Nutzerwunsch, widerruft v1.6.11) -
@@ -389,7 +391,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.27';
+  const VERSION = 'v1.6.28';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -467,6 +469,7 @@
     + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
     + '<span data-role="gear" title="Positionsmodus einstellen" style="cursor:pointer;opacity:.7">⚙️</span>'
     + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+    + '<span data-role="minimize" title="In die Menüleiste legen" style="cursor:pointer;opacity:.7">⬇</span>'
     + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
     + '</span></div>'
     // Nutzer-Report 2026-09-18 (echter Alt-Bug, nicht durch spaetere
@@ -496,6 +499,7 @@
   const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
   const gearBtn = panel.querySelector('[data-role="gear"]');
   const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+  const minimizeBtn = panel.querySelector('[data-role="minimize"]');
   const closeBtn = panel.querySelector('[data-role="close"]');
   const panelBody = panel.querySelector('[data-role="body"]');
 
@@ -530,6 +534,7 @@
   });
 
   function reposition() {
+    if (minimized) return;
     if (posMode === 'free') { if (!drag) avoidFixedOverlap(); return; }
     const s = panel.dataset.ikbmSide;
     const top = computeStackTop(s, seq);
@@ -537,6 +542,67 @@
     if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
     else { panel.style.right = '20px'; panel.style.left = ''; }
   }
+
+  // Nutzerwunsch 2026-09-18: Panels sollen sich in die islandking.ch-
+  // Menueleiste "minimieren" lassen, rechts neben den Nutzernamen. Anker
+  // ist der DE/EN-Sprachumschalter-Span (Klasse "overflow-hidden", Text
+  // "DEEN") - dessen Elternelement ist die rechte Icon-Reihe der Leiste
+  // (Diamanten/Discord/Sprache/Dunkelmodus/Nutzername), live per
+  // Claude-in-Chrome verifiziert 2026-09-18. Ueber Text/Klasse statt "das
+  // letzte Kind" gesucht, weil "letztes Kind" sich mit jedem weiteren
+  // minimierten Panel selbst verschieben wuerde.
+  function findNavbarAnchor() {
+    const span = Array.from(document.querySelectorAll('span')).find(
+      (s) => s.className.includes('overflow-hidden') && s.textContent.trim() === 'DEEN'
+    );
+    return span ? span.parentElement : null;
+  }
+  function ensureNavbarTray() {
+    let tray = document.getElementById('ikbm-navbar-tray');
+    if (tray) return tray;
+    const anchor = findNavbarAnchor();
+    if (!anchor) return null;
+    tray = document.createElement('div');
+    tray.id = 'ikbm-navbar-tray';
+    tray.style.cssText = 'display:flex;align-items:center;gap:2px';
+    anchor.appendChild(tray);
+    return tray;
+  }
+  let navIcon = null;
+  let navIconDot = null;
+  function ensureNavIcon() {
+    if (navIcon) return;
+    const tray = ensureNavbarTray();
+    if (!tray) return;
+    navIcon = document.createElement('button');
+    navIcon.type = 'button';
+    navIcon.title = 'Allianz Status (minimiert) - Klick zum Wiederherstellen';
+    navIcon.style.cssText = 'position:relative;display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+    navIcon.textContent = '🤝';
+    navIconDot = document.createElement('span');
+    navIconDot.title = 'Neue Angriffe/Spähposten-Meldungen';
+    navIconDot.style.cssText = 'display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#f2a0a0';
+    navIcon.appendChild(navIconDot);
+    navIcon.addEventListener('click', restorePanel);
+    tray.appendChild(navIcon);
+  }
+  function minimizePanel() {
+    minimized = true;
+    writePref(MINIMIZED_KEY, '1');
+    panel.style.display = 'none';
+    ensureNavIcon();
+    if (navIcon) navIcon.style.display = 'inline-flex';
+    updateHeaderDot();
+  }
+  function restorePanel() {
+    minimized = false;
+    writePref(MINIMIZED_KEY, '0');
+    panel.style.display = 'flex';
+    if (navIcon) navIcon.style.display = 'none';
+    updateHeaderDot();
+    reposition();
+  }
+  minimizeBtn.addEventListener('click', minimizePanel);
 
   // Nutzer-Report 2026-09-18: nach dem Wechsel auf "Frei verschiebbar"
   // bleibt das Panel an seiner alten (fest gestapelten) Stelle stehen -
@@ -646,7 +712,13 @@
     drag = null;
   });
 
-  reposition();
+  if (minimized) {
+    panel.style.display = 'none';
+    ensureNavIcon();
+    if (navIcon) navIcon.style.display = 'inline-flex';
+  } else {
+    reposition();
+  }
   const repositionHandle = setInterval(reposition, 250);
 
   // Reagiert auf einen Theme-Wechsel OHNE Reload (kein Navigations-Event
@@ -654,7 +726,7 @@
   const ikbmThemeObserver = new MutationObserver(() => { applyIkbmTheme(panel); applyIkbmTheme(posMenu); });
   ikbmThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-  panel.__ikasCleanup = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); posMenu.remove(); };
+  panel.__ikasCleanup = () => { clearInterval(refreshHandle); clearInterval(repositionHandle); ikbmThemeObserver.disconnect(); posMenu.remove(); if (navIcon) navIcon.remove(); };
   closeBtn.onclick = () => { panel.__ikasCleanup(); panel.remove(); };
 
   const style = document.createElement('style');
@@ -695,7 +767,9 @@
   function updateHeaderDot() {
     const attacksOn = !document.getElementById('ikas-attacks-dot').hidden;
     const scoutOn = !document.getElementById('ikas-scout-dot').hidden;
-    headerDot.style.display = (panelBody.hidden && (attacksOn || scoutOn)) ? 'inline-block' : 'none';
+    const hasNews = attacksOn || scoutOn;
+    headerDot.style.display = (panelBody.hidden && hasNews) ? 'inline-block' : 'none';
+    if (navIconDot) navIconDot.style.display = (minimized && hasNews) ? 'inline-block' : 'none';
   }
 
   let activeTabName = 'alliance';

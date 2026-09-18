@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.33
+// @version      1.7.0
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -198,7 +198,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.6.33');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.7.0');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -267,15 +267,19 @@
   // beliebig) - beim Zurueckwechseln auf "Feste Position" wird die zuletzt
   // bekannte Seite wiederhergestellt.
   function createPanel(id, title, width, defaultSide, bodyHtml) {
+    const navGlyph = title.trim().split(' ')[0];
+    const navLabel = title;
     title = title + VERSION_HTML;
     const sideKey = 'ikbm-side-' + id;
     const collapsedKey = 'ikbm-collapsed-' + id;
     const posModeKey = 'ikbm-posmode-' + id;
     const posKey = 'ikbm-pos-' + id;
+    const minimizedKey = 'ikbm-minimized-' + id;
     const side = readPref(sideKey, defaultSide);
     const collapsed = readPref(collapsedKey, '0') === '1';
     let posMode = readPref(posModeKey, 'fixed');
     let fixedSide = side;
+    let minimized = readPref(minimizedKey, '0') === '1';
     const seq = nextPanelSeq();
 
     const panel = document.createElement('div');
@@ -305,6 +309,7 @@
       + '<span data-role="update-check" title="Auf Updates prüfen" style="cursor:pointer;opacity:.7">↻</span>'
       + '<span data-role="gear" title="Positionsmodus einstellen" style="cursor:pointer;opacity:.7">⚙️</span>'
       + '<span data-role="side-toggle" title="Seite wechseln (aktuell: ' + (side === 'left' ? 'links' : 'rechts') + ')" style="cursor:pointer;opacity:.7">⇄</span>'
+      + '<span data-role="minimize" title="In die Menüleiste legen" style="cursor:pointer;opacity:.7">⬇</span>'
       + '<span data-role="close" style="cursor:pointer;opacity:.7">✕</span>'
       + '</span></div>'
       + '<div data-role="body" style="flex:1;overflow:auto;min-height:0;scrollbar-gutter:stable;padding-right:8px;box-sizing:border-box"' + (collapsed ? ' hidden' : '') + '>' + bodyHtml + '</div>';
@@ -315,6 +320,7 @@
     const updateCheckBtn = panel.querySelector('[data-role="update-check"]');
     const gearBtn = panel.querySelector('[data-role="gear"]');
     const sideToggle = panel.querySelector('[data-role="side-toggle"]');
+    const minimizeBtn = panel.querySelector('[data-role="minimize"]');
     const closeBtn = panel.querySelector('[data-role="close"]');
     const body = panel.querySelector('[data-role="body"]');
 
@@ -354,6 +360,7 @@
     });
 
     function reposition() {
+      if (minimized) return;
       if (posMode === 'free') { if (!drag) avoidFixedOverlap(); return; }
       const s = panel.dataset.ikbmSide;
       const top = computeStackTop(s, seq);
@@ -362,6 +369,56 @@
       else { panel.style.right = '20px'; panel.style.left = ''; }
       panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
     }
+
+    // Nutzerwunsch 2026-09-18: Panels sollen sich in die islandking.ch-
+    // Menueleiste "minimieren" lassen, rechts neben den Nutzernamen - siehe
+    // Allianz Status fuer die ausfuehrliche Begruendung des Ankers (DE/EN-
+    // Sprachumschalter-Span, live per Claude-in-Chrome verifiziert).
+    function findNavbarAnchor() {
+      const span = Array.from(document.querySelectorAll('span')).find(
+        (s) => s.className.includes('overflow-hidden') && s.textContent.trim() === 'DEEN'
+      );
+      return span ? span.parentElement : null;
+    }
+    function ensureNavbarTray() {
+      let tray = document.getElementById('ikbm-navbar-tray');
+      if (tray) return tray;
+      const anchor = findNavbarAnchor();
+      if (!anchor) return null;
+      tray = document.createElement('div');
+      tray.id = 'ikbm-navbar-tray';
+      tray.style.cssText = 'display:flex;align-items:center;gap:2px';
+      anchor.appendChild(tray);
+      return tray;
+    }
+    let navIcon = null;
+    function ensureNavIcon() {
+      if (navIcon) return;
+      const tray = ensureNavbarTray();
+      if (!tray) return;
+      navIcon = document.createElement('button');
+      navIcon.type = 'button';
+      navIcon.title = navLabel + ' (minimiert) - Klick zum Wiederherstellen';
+      navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+      navIcon.textContent = navGlyph;
+      navIcon.addEventListener('click', restorePanel);
+      tray.appendChild(navIcon);
+    }
+    function minimizePanel() {
+      minimized = true;
+      writePref(minimizedKey, '1');
+      panel.style.display = 'none';
+      ensureNavIcon();
+      if (navIcon) navIcon.style.display = 'inline-flex';
+    }
+    function restorePanel() {
+      minimized = false;
+      writePref(minimizedKey, '0');
+      panel.style.display = 'flex';
+      if (navIcon) navIcon.style.display = 'none';
+      reposition();
+    }
+    minimizeBtn.addEventListener('click', minimizePanel);
 
     // Nutzer-Report 2026-09-18: nach dem Wechsel auf "Frei verschiebbar"
     // bleibt das Panel an seiner alten (fest gestapelten) Stelle stehen -
@@ -488,7 +545,13 @@
       drag = null;
     });
 
-    return { panel, body, reposition, closeBtn, posMenu };
+    if (minimized) {
+      panel.style.display = 'none';
+      ensureNavIcon();
+      if (navIcon) navIcon.style.display = 'inline-flex';
+    }
+
+    return { panel, body, reposition, closeBtn, posMenu, removeNavIcon: () => { if (navIcon) navIcon.remove(); } };
   }
 
   const SHIPS_LIST = [
@@ -1426,6 +1489,6 @@
   repositionAll();
   const repositionHandle = setInterval(repositionAll, 250);
 
-  travel.closeBtn.onclick = () => { travel.panel.remove(); travel.posMenu.remove(); };
-  combat.closeBtn.onclick = () => { combat.panel.remove(); combat.posMenu.remove(); };
+  travel.closeBtn.onclick = () => { travel.panel.remove(); travel.posMenu.remove(); travel.removeNavIcon(); };
+  combat.closeBtn.onclick = () => { combat.panel.remove(); combat.posMenu.remove(); combat.removeNavIcon(); };
 })();
