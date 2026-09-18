@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.7.1
+// @version      1.7.2
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -533,13 +533,17 @@
   // in Reihe 2 an derselben Spalte (Grid-Auto-Placement, kein eigenes
   // Positionieren noetig).
   function ensureStockRow(costP, stock) {
-    const originalSpans = Array.from(costP.children).filter((c) => c.tagName === 'SPAN' && !c.dataset.ikbaStock);
+    // Nur Rohstoff-Spans (mit <img>): bei Geld-Mangel haengt die Seite ein
+    // "⏳ reicht in ..."-Span OHNE Icon an die Kostenzeile - der liess frueher
+    // img.alt werfen und brach die Schleife fuer ALLE folgenden Gebaeude ab.
+    const allSpans = Array.from(costP.children).filter((c) => c.tagName === 'SPAN' && !c.dataset.ikbaStock);
+    const originalSpans = allSpans.filter((c) => c.querySelector('img'));
     if (!originalSpans.length) return;
     if (costP.dataset.ikbaGrid !== '1') {
       costP.dataset.ikbaGrid = '1';
       Array.from(costP.childNodes).forEach((n) => { if (n.nodeType === 3) costP.removeChild(n); });
       costP.style.display = 'grid';
-      costP.style.gridTemplateColumns = 'repeat(' + originalSpans.length + ', max-content)';
+      costP.style.gridTemplateColumns = 'repeat(' + allSpans.length + ', max-content)';
       // Nutzerwunsch: mehr Luft zwischen Kosten- und Bestandszeile sowie
       // zwischen den Spalten, sonst wirken die (oft laengeren) Bestands-
       // zahlen bei knapper Spaltenbreite zu dicht gedraengt.
