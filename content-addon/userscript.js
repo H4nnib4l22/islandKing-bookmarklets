@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.0
+// @version      1.6.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -523,31 +523,42 @@
     return Array.from(li.querySelectorAll('p')).find((p) => p.querySelector('img'));
   }
 
+  // Nutzerwunsch (Nachbesserung): der Bestand soll nicht als eigene
+  // Zeile darunter, sondern SPALTENWEISE direkt unter dem jeweiligen
+  // Rohstoff stehen (Holz unter Holz, Stein unter Stein). Dafuer die
+  // Kosten-<p> selbst auf CSS-Grid umstellen (repeat(n, max-content), die
+  // " · "-Trenn-Textknoten dabei entfernt - der Grid-Spaltenabstand
+  // uebernimmt die Trennung) und die neuen Bestands-<span>s einfach
+  // ANHAENGEN: bei n Original-Spans in Reihe 1 landen sie automatisch
+  // in Reihe 2 an derselben Spalte (Grid-Auto-Placement, kein eigenes
+  // Positionieren noetig).
   function ensureStockRow(costP, stock) {
-    const spans = Array.from(costP.children).filter((c) => c.tagName === 'SPAN' && c.querySelector('img'));
-    if (!spans.length) return;
-    let row = costP.nextElementSibling;
-    if (!row || row.dataset.ikbaStockRow !== '1') {
-      row = document.createElement('p');
-      row.dataset.ikbaStockRow = '1';
-      row.className = costP.className;
-      row.appendChild(document.createTextNode('Du hast: '));
-      costP.insertAdjacentElement('afterend', row);
+    const originalSpans = Array.from(costP.children).filter((c) => c.tagName === 'SPAN' && !c.dataset.ikbaStock);
+    if (!originalSpans.length) return;
+    if (costP.dataset.ikbaGrid !== '1') {
+      costP.dataset.ikbaGrid = '1';
+      Array.from(costP.childNodes).forEach((n) => { if (n.nodeType === 3) costP.removeChild(n); });
+      costP.style.display = 'grid';
+      costP.style.gridTemplateColumns = 'repeat(' + originalSpans.length + ', max-content)';
+      costP.style.columnGap = '14px';
+      costP.style.rowGap = '2px';
     }
-    while (row.childNodes.length > 1) row.removeChild(row.lastChild);
-    spans.forEach((span, i) => {
-      if (i > 0) row.appendChild(document.createTextNode(' · '));
+    const haveSpans = Array.from(costP.querySelectorAll('span[data-ikba-stock]'));
+    originalSpans.forEach((span, i) => {
       const img = span.querySelector('img');
       const key = img.alt;
       const needed = parseInt(span.textContent.replace(/[^\d]/g, ''), 10) || 0;
       const have = stock && stock.resources[key] !== undefined
         ? Math.min(stock.capacity, stock.resources[key] + (stock.perHour[key] || 0) * (Date.now() - stock.fetchedAt) / 3600000)
         : null;
-      const wrap = document.createElement('span');
-      if (have !== null) wrap.style.color = have < needed ? '#f87171' : '#4ade80';
-      wrap.appendChild(img.cloneNode(true));
-      wrap.appendChild(document.createTextNode(' ' + (have === null ? '?' : formatNum(have))));
-      row.appendChild(wrap);
+      let haveSpan = haveSpans[i];
+      if (!haveSpan) {
+        haveSpan = document.createElement('span');
+        haveSpan.dataset.ikbaStock = '1';
+        costP.appendChild(haveSpan);
+      }
+      haveSpan.style.color = have === null ? '' : (have < needed ? '#f87171' : '#4ade80');
+      haveSpan.textContent = have === null ? '?' : formatNum(have);
     });
   }
 
