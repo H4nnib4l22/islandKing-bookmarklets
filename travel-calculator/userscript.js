@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.7.0
+// @version      1.7.1
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -198,7 +198,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.7.0');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.7.1');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -374,35 +374,52 @@
     // Menueleiste "minimieren" lassen, rechts neben den Nutzernamen - siehe
     // Allianz Status fuer die ausfuehrliche Begruendung des Ankers (DE/EN-
     // Sprachumschalter-Span, live per Claude-in-Chrome verifiziert).
-    function findNavbarAnchor() {
+    // Nutzer-Report 2026-09-18 (Nachbesserung): der Tray haengte bisher als
+    // ECHTES Kind in der Menueleisten-Flexbox - sobald ein Panel minimiert
+    // wurde, sprengte das die verfuegbare Breite und liess die Website-
+    // eigenen Menuepunkte (Aufbau/Sozial/Mehr/Nutzername) ineinander
+    // rutschen/ueberlappen (Nutzer-Screenshot). Fix: Tray haengt jetzt
+    // NICHT mehr im Menueleisten-Flow, sondern als eigenes position:fixed-
+    // Element direkt am body, nur optisch (per getBoundingClientRect) am
+    // Nutzernamen ausgerichtet - kann die Leiste selbst also nicht mehr
+    // beeinflussen.
+    function findUsernameWrapper() {
       const span = Array.from(document.querySelectorAll('span')).find(
         (s) => s.className.includes('overflow-hidden') && s.textContent.trim() === 'DEEN'
       );
-      return span ? span.parentElement : null;
+      return span ? span.parentElement.lastElementChild : null;
+    }
+    function positionNavbarTray() {
+      const tray = document.getElementById('ikbm-navbar-tray');
+      const usernameWrapper = findUsernameWrapper();
+      if (!tray || !usernameWrapper) return;
+      const rect = usernameWrapper.getBoundingClientRect();
+      tray.style.top = rect.top + 'px';
+      tray.style.left = (rect.right + 8) + 'px';
     }
     function ensureNavbarTray() {
       let tray = document.getElementById('ikbm-navbar-tray');
       if (tray) return tray;
-      const anchor = findNavbarAnchor();
-      if (!anchor) return null;
       tray = document.createElement('div');
       tray.id = 'ikbm-navbar-tray';
-      tray.style.cssText = 'display:flex;align-items:center;gap:2px';
-      anchor.appendChild(tray);
+      tray.style.cssText = 'position:fixed;display:flex;align-items:center;gap:2px;z-index:1000001';
+      document.body.appendChild(tray);
+      window.addEventListener('resize', positionNavbarTray);
       return tray;
     }
     let navIcon = null;
     function ensureNavIcon() {
-      if (navIcon) return;
-      const tray = ensureNavbarTray();
-      if (!tray) return;
-      navIcon = document.createElement('button');
-      navIcon.type = 'button';
-      navIcon.title = navLabel + ' (minimiert) - Klick zum Wiederherstellen';
-      navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
-      navIcon.textContent = navGlyph;
-      navIcon.addEventListener('click', restorePanel);
-      tray.appendChild(navIcon);
+      if (!navIcon) {
+        const tray = ensureNavbarTray();
+        navIcon = document.createElement('button');
+        navIcon.type = 'button';
+        navIcon.title = navLabel + ' (minimiert) - Klick zum Wiederherstellen';
+        navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+        navIcon.textContent = navGlyph;
+        navIcon.addEventListener('click', restorePanel);
+        tray.appendChild(navIcon);
+      }
+      positionNavbarTray();
     }
     function minimizePanel() {
       minimized = true;

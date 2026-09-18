@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.28
+// @version      1.6.29
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar (Einklappen jetzt zuverlässig, alter CSS-Konflikt behoben), per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -391,7 +391,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.28';
+  const VERSION = 'v1.6.29';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -551,40 +551,57 @@
   // Claude-in-Chrome verifiziert 2026-09-18. Ueber Text/Klasse statt "das
   // letzte Kind" gesucht, weil "letztes Kind" sich mit jedem weiteren
   // minimierten Panel selbst verschieben wuerde.
-  function findNavbarAnchor() {
+  // Nutzer-Report 2026-09-18 (Nachbesserung): der Tray haengte bisher als
+  // ECHTES Kind in der Menueleisten-Flexbox - sobald ein Panel minimiert
+  // wurde, sprengte das die verfuegbare Breite und liess die Website-
+  // eigenen Menuepunkte (Aufbau/Sozial/Mehr/Nutzername) ineinander
+  // rutschen/ueberlappen (Nutzer-Screenshot). Fix: Tray haengt jetzt NICHT
+  // mehr im Menueleisten-Flow, sondern als eigenes position:fixed-Element
+  // direkt am body, nur optisch (per getBoundingClientRect) am
+  // Nutzernamen ausgerichtet - kann die Leiste selbst also nicht mehr
+  // beeinflussen.
+  function findUsernameWrapper() {
     const span = Array.from(document.querySelectorAll('span')).find(
       (s) => s.className.includes('overflow-hidden') && s.textContent.trim() === 'DEEN'
     );
-    return span ? span.parentElement : null;
+    return span ? span.parentElement.lastElementChild : null;
+  }
+  function positionNavbarTray() {
+    const tray = document.getElementById('ikbm-navbar-tray');
+    const usernameWrapper = findUsernameWrapper();
+    if (!tray || !usernameWrapper) return;
+    const rect = usernameWrapper.getBoundingClientRect();
+    tray.style.top = rect.top + 'px';
+    tray.style.left = (rect.right + 8) + 'px';
   }
   function ensureNavbarTray() {
     let tray = document.getElementById('ikbm-navbar-tray');
     if (tray) return tray;
-    const anchor = findNavbarAnchor();
-    if (!anchor) return null;
     tray = document.createElement('div');
     tray.id = 'ikbm-navbar-tray';
-    tray.style.cssText = 'display:flex;align-items:center;gap:2px';
-    anchor.appendChild(tray);
+    tray.style.cssText = 'position:fixed;display:flex;align-items:center;gap:2px;z-index:1000001';
+    document.body.appendChild(tray);
+    window.addEventListener('resize', positionNavbarTray);
     return tray;
   }
   let navIcon = null;
   let navIconDot = null;
   function ensureNavIcon() {
-    if (navIcon) return;
-    const tray = ensureNavbarTray();
-    if (!tray) return;
-    navIcon = document.createElement('button');
-    navIcon.type = 'button';
-    navIcon.title = 'Allianz Status (minimiert) - Klick zum Wiederherstellen';
-    navIcon.style.cssText = 'position:relative;display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
-    navIcon.textContent = '🤝';
-    navIconDot = document.createElement('span');
-    navIconDot.title = 'Neue Angriffe/Spähposten-Meldungen';
-    navIconDot.style.cssText = 'display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#f2a0a0';
-    navIcon.appendChild(navIconDot);
-    navIcon.addEventListener('click', restorePanel);
-    tray.appendChild(navIcon);
+    if (!navIcon) {
+      const tray = ensureNavbarTray();
+      navIcon = document.createElement('button');
+      navIcon.type = 'button';
+      navIcon.title = 'Allianz Status (minimiert) - Klick zum Wiederherstellen';
+      navIcon.style.cssText = 'position:relative;display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+      navIcon.textContent = '🤝';
+      navIconDot = document.createElement('span');
+      navIconDot.title = 'Neue Angriffe/Spähposten-Meldungen';
+      navIconDot.style.cssText = 'display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#f2a0a0';
+      navIcon.appendChild(navIconDot);
+      navIcon.addEventListener('click', restorePanel);
+      tray.appendChild(navIcon);
+    }
+    positionNavbarTray();
   }
   function minimizePanel() {
     minimized = true;
