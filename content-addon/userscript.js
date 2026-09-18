@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.7.3
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
+// @version      1.8.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten, und Restzeit unter „wird ausgebaut“/„wird erforscht“.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -362,16 +362,20 @@
 
   const dashboardLevelCache = {}; // islandId -> {expires, promise<Map<name, targetLevel>>}
 
-  function fetchIslandLevels(islandId) {
+  function fetchIslandOverview(islandId) {
     const cached = dashboardLevelCache[islandId];
     if (cached && cached.expires > Date.now()) return cached.promise;
     const token = localStorage.getItem('access_token');
     const promise = fetch('/api/islands/' + islandId + '/overview', { headers: { Authorization: 'Bearer ' + token } })
       .then((r) => r.json())
-      .then((data) => new Map((data.buildQueueItems || []).map((b) => [b.buildingName, b.targetLevel])))
-      .catch(() => new Map());
+      .catch(() => ({}));
     dashboardLevelCache[islandId] = { expires: Date.now() + 10000, promise };
     return promise;
+  }
+
+  function fetchIslandLevels(islandId) {
+    return fetchIslandOverview(islandId)
+      .then((data) => new Map((data.buildQueueItems || []).map((b) => [b.buildingName, b.targetLevel])));
   }
 
   function tickDashboardLevels() {
@@ -627,18 +631,60 @@
   // <Ziel-1> von".
   // -------------------------------------------------------------------
 
+  // Restzeit-Zeile ("⏱ noch 1h 46m 5s", Format wie die Website selbst) direkt
+  // unter dem "wird ausgebaut/erforscht"-Text (Feature 9). finishAt (ISO)
+  // liefern buildQueueItems[] bzw. researchQueueItems[]; die Zeile wird bei
+  // jedem 500-ms-Tick neu berechnet, die API-Antworten sind gecacht.
+  function formatRemaining(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    if (s === 0) return 'gleich fertig';
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    return 'noch ' + [h ? h + 'h' : '', m ? m + 'm' : '', sec ? sec + 's' : ''].filter(Boolean).join(' ');
+  }
+
+  function ensureEta(anchorP, finishAt) {
+    let eta = anchorP.nextElementSibling;
+    if (!eta || !eta.dataset.ikbaEta) {
+      eta = document.createElement('p');
+      eta.dataset.ikbaEta = '1';
+      eta.className = 'text-xs text-gray-500';
+      anchorP.insertAdjacentElement('afterend', eta);
+    }
+    eta.textContent = '⏱ ' + formatRemaining(new Date(finishAt).getTime() - Date.now());
+  }
+
+  function tickRunningBuilds() {
+    const m = location.pathname.match(/^\/island\/(\d+)/);
+    if (!m) return;
+    const section = findSection(SECTIONS[0]);
+    if (!section) return;
+    fetchIslandOverview(m[1]).then((data) => {
+      // Laengster Name zuerst, damit "Haus" nicht "Haupthaus" verschluckt.
+      const items = ((data && data.buildQueueItems) || []).slice().sort((a, b) => b.buildingName.length - a.buildingName.length);
+      Array.from(section.ul.children).forEach((li) => {
+        const p = Array.from(li.querySelectorAll('p')).find((x) => !x.dataset.ikbaEta && x.textContent.includes('wird ausgebaut'));
+        const item = p && items.find((b) => li.textContent.includes(b.buildingName));
+        if (item) ensureEta(p, item.finishAt);
+        else { const eta = li.querySelector('[data-ikba-eta]'); if (eta) eta.remove(); }
+      });
+    });
+  }
+
   function tickRunningResearch() {
     if (location.pathname !== '/research') return;
     const section = findSection(SECTIONS[1]);
     if (!section) return;
     fetchResearchOverviewCached().then((r) => {
-      const running = ((r && r.researchQueueItems) || []).map((q) => q.researchName + ' Stufe ' + (q.targetLevel - 1) + ' von');
+      const running = ((r && r.researchQueueItems) || []).map((q) => ({ key: q.researchName + ' Stufe ' + (q.targetLevel - 1) + ' von', finishAt: q.finishAt }));
       Array.from(section.ul.children).forEach((li) => {
         const btn = li.querySelector('button');
         const marker = li.querySelector('[data-ikba-running]');
-        const isRunning = running.some((key) => li.textContent.includes(key));
+        const runItem = running.find((q) => li.textContent.includes(q.key));
+        const isRunning = !!runItem;
         if (!isRunning) {
           if (marker) { marker.remove(); }
+          const eta = li.querySelector('[data-ikba-eta]');
+          if (eta) eta.remove();
           if (btn && btn.dataset.ikbaHidden) {
             btn.style.display = '';
             if (btn.nextElementSibling) btn.nextElementSibling.style.display = '';
@@ -650,17 +696,19 @@
         btn.dataset.ikbaHidden = '1';
         btn.style.display = 'none';
         if (btn.nextElementSibling && !btn.nextElementSibling.dataset.ikbaRunning) btn.nextElementSibling.style.display = 'none';
-        if (!marker) {
-          const p = document.createElement('p');
+        let p = marker;
+        if (!p) {
+          p = document.createElement('p');
           p.dataset.ikbaRunning = '1';
           p.className = 'text-xs font-medium text-ocean-500';
           p.textContent = '🔬 wird erforscht';
           btn.insertAdjacentElement('beforebegin', p);
         }
+        ensureEta(p, runItem.finishAt);
       });
     });
   }
 
   tick();
-  setInterval(() => { tick(); tickRunningResearch(); }, 500);
+  setInterval(() => { tick(); tickRunningResearch(); tickRunningBuilds(); }, 500);
 })();
