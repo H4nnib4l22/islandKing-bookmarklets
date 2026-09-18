@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.5.1
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten.
+// @version      1.6.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -58,6 +58,22 @@
  *    fuellen -> alle drei 9000). Verifiziert live per Claude-in-Chrome:
  *    native Value-Setter + "input"-Event noetig, damit Reacts
  *    kontrollierte Inputs (kein Vue wie bei Kaserne/Handel) reagieren.
+ *
+ * 7) Aktuelle Rohstoffe unter Bau-/Forschungskosten (v1.6.0) — auf
+ *    /island/<id> (Gebäude-Liste) und /research zeigt jede Zeile schon die
+ *    Kosten (<p class="mt-1 text-xs text-gray-500"> mit einem <span> je
+ *    Rohstoff: <img alt="wood|stone|iron|coal"> + Betrag, identisches
+ *    Markup auf beiden Seiten, verifiziert live per Claude-in-Chrome
+ *    2026-09-18). Darunter fügt dieses Script eine zweite Zeile "Du hast:"
+ *    ein, mit dem aktuellen Bestand je dort genanntem Rohstoff - live
+ *    hochgezaehlt anhand productionPerHour (die Seite selbst aktualisiert
+ *    ihre eigene Kopfzeilen-Anzeige NICHT automatisch, nur bei Reload,
+ *    ebenfalls live verifiziert). Rot, wenn der Bestand (noch) nicht fuer
+ *    die Kosten dieser Zeile reicht, gruen sonst. Datenquelle /api/empire
+ *    (resources/productionPerHour/capacity je Insel) - fuer /research
+ *    liefert /api/research-overview.homeIslandId, welche Insel das ist
+ *    (Forschung wird immer aus der Heimatinsel bezahlt, nicht der gerade
+ *    betrachteten).
  *
  * 6) Allianzkuerzel bei Berichten (v1.5.1) — auf /spy-reports und
  *    /battle-reports steht jetzt hinter jedem Spielernamen das
@@ -138,6 +154,7 @@
     tickMarketQuickAdd();
     tickHarborQuickFill();
     tickDashboardLevels();
+    tickResourceStock();
     annotateReportAllianceTags();
   }
 
@@ -446,6 +463,105 @@
   function annotateReportAllianceTags() {
     if (location.pathname === '/spy-reports') annotateSpyReportNames();
     else if (location.pathname === '/battle-reports') annotateBattleReportNames();
+  }
+
+  // -------------------------------------------------------------------
+  // Aktuelle Rohstoffe unter Bau-/Forschungskosten — siehe Kommentar am
+  // Dateikopf (Feature 7). /api/empire liefert resources/productionPerHour/
+  // capacity je Insel, gecacht wie fetchIslandLevels() oben (10s), damit
+  // das 500ms-Poll-Intervall nicht bei jedem Tick neu abfragt.
+  // -------------------------------------------------------------------
+
+  let empireCache = null; // {expires, promise<{data, fetchedAt}>}
+  function fetchEmpireCached() {
+    if (empireCache && empireCache.expires > Date.now()) return empireCache.promise;
+    const token = localStorage.getItem('access_token');
+    const fetchedAt = Date.now();
+    const promise = fetch('/api/empire', { headers: { Authorization: 'Bearer ' + token } })
+      .then((r) => r.json())
+      .then((data) => ({ data, fetchedAt }))
+      .catch(() => null);
+    empireCache = { expires: fetchedAt + 10000, promise };
+    return promise;
+  }
+
+  let researchOverviewCache = null; // {expires, promise}
+  function fetchResearchOverviewCached() {
+    if (researchOverviewCache && researchOverviewCache.expires > Date.now()) return researchOverviewCache.promise;
+    const token = localStorage.getItem('access_token');
+    const promise = fetch('/api/research-overview', { headers: { Authorization: 'Bearer ' + token } })
+      .then((r) => r.json())
+      .catch(() => null);
+    researchOverviewCache = { expires: Date.now() + 10000, promise };
+    return promise;
+  }
+
+  // Forschung wird immer aus der Heimatinsel bezahlt (research-overview.
+  // homeIslandId), unabhaengig davon, welche Insel man sich gerade
+  // anschaut - /research hat dafuer auch keine Insel-ID in der URL.
+  async function currentIslandStock() {
+    let islandId;
+    if (location.pathname.startsWith('/island/')) {
+      islandId = location.pathname.split('/')[2];
+    } else if (location.pathname === '/research') {
+      const research = await fetchResearchOverviewCached();
+      islandId = research && research.homeIslandId;
+    }
+    if (!islandId) return null;
+    const empire = await fetchEmpireCached();
+    if (!empire) return null;
+    const island = empire.data.islands.find((i) => String(i.id) === String(islandId));
+    if (!island) return null;
+    return { resources: island.resources, perHour: island.productionPerHour, capacity: island.capacity, fetchedAt: empire.fetchedAt };
+  }
+
+  function formatNum(n) {
+    return Math.floor(n).toLocaleString('de-CH');
+  }
+
+  function findCostRow(li) {
+    return Array.from(li.querySelectorAll('p')).find((p) => p.querySelector('img'));
+  }
+
+  function ensureStockRow(costP, stock) {
+    const spans = Array.from(costP.children).filter((c) => c.tagName === 'SPAN' && c.querySelector('img'));
+    if (!spans.length) return;
+    let row = costP.nextElementSibling;
+    if (!row || row.dataset.ikbaStockRow !== '1') {
+      row = document.createElement('p');
+      row.dataset.ikbaStockRow = '1';
+      row.className = costP.className;
+      row.appendChild(document.createTextNode('Du hast: '));
+      costP.insertAdjacentElement('afterend', row);
+    }
+    while (row.childNodes.length > 1) row.removeChild(row.lastChild);
+    spans.forEach((span, i) => {
+      if (i > 0) row.appendChild(document.createTextNode(' · '));
+      const img = span.querySelector('img');
+      const key = img.alt;
+      const needed = parseInt(span.textContent.replace(/[^\d]/g, ''), 10) || 0;
+      const have = stock && stock.resources[key] !== undefined
+        ? Math.min(stock.capacity, stock.resources[key] + (stock.perHour[key] || 0) * (Date.now() - stock.fetchedAt) / 3600000)
+        : null;
+      const wrap = document.createElement('span');
+      if (have !== null) wrap.style.color = have < needed ? '#f87171' : '#4ade80';
+      wrap.appendChild(img.cloneNode(true));
+      wrap.appendChild(document.createTextNode(' ' + (have === null ? '?' : formatNum(have))));
+      row.appendChild(wrap);
+    });
+  }
+
+  function tickResourceStock() {
+    const relevant = SECTIONS.map(findSection).filter(Boolean);
+    if (!relevant.length) return;
+    currentIslandStock().then((stock) => {
+      relevant.forEach(({ ul }) => {
+        Array.from(ul.children).forEach((li) => {
+          const costP = findCostRow(li);
+          if (costP) ensureStockRow(costP, stock);
+        });
+      });
+    });
   }
 
   tick();
