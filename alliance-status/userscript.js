@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.26
+// @version      1.6.27
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar (Einklappen jetzt zuverlässig, alter CSS-Konflikt behoben), per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -392,7 +392,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.26';
+  const VERSION = 'v1.6.27';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -533,12 +533,32 @@
   });
 
   function reposition() {
-    if (posMode === 'free') return; // Position gehoert dem Ziehen, nicht dem Auto-Stack.
+    if (posMode === 'free') { if (!drag) avoidFixedOverlap(); return; }
     const s = panel.dataset.ikbmSide;
     const top = computeStackTop(s, seq);
     panel.style.top = top + 'px';
     if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
     else { panel.style.right = '20px'; panel.style.left = ''; }
+  }
+
+  // Nutzer-Report 2026-09-18: nach dem Wechsel auf "Frei verschiebbar"
+  // bleibt das Panel an seiner alten (fest gestapelten) Stelle stehen -
+  // die verbleibenden FIXEN Panels derselben Seite ruecken aber automatisch
+  // eine Stufe nach oben nach (computeStackTop() zaehlt das jetzt freie
+  // Panel nicht mehr mit) und legen sich darueber. Laeuft im selben
+  // 250ms-Intervall wie reposition() mit: sobald ein fixes Panel das freie
+  // ueberlappt, rutscht das freie darunter. Waehrend des manuellen Ziehens
+  // (drag) pausiert, sonst wuerde es sich dem Nutzer aus der Hand reissen.
+  function avoidFixedOverlap() {
+    const rect = panel.getBoundingClientRect();
+    let maxBottom = null;
+    document.querySelectorAll('[data-ikbm-panel]:not([data-ikbm-side="free"])').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (rect.left < r.right && rect.right > r.left && rect.top < r.bottom && rect.bottom > r.top) {
+        maxBottom = Math.max(maxBottom ?? 0, r.bottom);
+      }
+    });
+    if (maxBottom !== null) panel.style.top = Math.round(maxBottom + 12) + 'px';
   }
 
   sideToggle.addEventListener('click', () => {
@@ -580,6 +600,7 @@
       panel.style.left = pos.x + 'px';
       panel.style.top = pos.y + 'px';
       panel.style.right = '';
+      avoidFixedOverlap();
     } else {
       panel.dataset.ikbmSide = fixedSide;
       sideToggle.textContent = '⇄';

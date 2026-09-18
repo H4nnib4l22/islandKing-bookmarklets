@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.1.9
+// @version      1.1.10
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -47,7 +47,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.1.9';
+  const VERSION = 'v1.1.10';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -444,13 +444,37 @@
   });
 
   function reposition() {
-    if (posMode === 'free') return;
+    if (posMode === 'free') { if (!drag) avoidFixedOverlap(); return; }
     const s = panel.dataset.ikbmSide;
     const top = computeStackTop(s, seq);
     panel.style.top = top + 'px';
     if (s === 'left') { panel.style.left = '20px'; panel.style.right = ''; }
     else { panel.style.right = '20px'; panel.style.left = ''; }
     panel.style.maxHeight = 'calc(100vh - ' + top + 'px - 20px)';
+  }
+
+  // Nutzer-Report 2026-09-18: nach dem Wechsel auf "Frei verschiebbar"
+  // bleibt das Panel an seiner alten (fest gestapelten) Stelle stehen -
+  // die verbleibenden FIXEN Panels derselben Seite ruecken aber automatisch
+  // eine Stufe nach oben nach (computeStackTop() zaehlt das jetzt freie
+  // Panel nicht mehr mit) und legen sich darueber. Laeuft im selben
+  // 250ms-Intervall wie reposition() mit: sobald ein fixes Panel das freie
+  // ueberlappt, rutscht das freie darunter. Waehrend des manuellen Ziehens
+  // (drag) pausiert, sonst wuerde es sich dem Nutzer aus der Hand reissen.
+  function avoidFixedOverlap() {
+    const rect = panel.getBoundingClientRect();
+    let maxBottom = null;
+    document.querySelectorAll('[data-ikbm-panel]:not([data-ikbm-side="free"])').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (rect.left < r.right && rect.right > r.left && rect.top < r.bottom && rect.bottom > r.top) {
+        maxBottom = Math.max(maxBottom ?? 0, r.bottom);
+      }
+    });
+    if (maxBottom !== null) {
+      const newTop = Math.round(maxBottom + 12);
+      panel.style.top = newTop + 'px';
+      panel.style.maxHeight = 'calc(100vh - ' + newTop + 'px - 20px)';
+    }
   }
 
   sideToggle.addEventListener('click', () => {
@@ -493,6 +517,7 @@
       panel.style.top = pos.y + 'px';
       panel.style.right = '';
       panel.style.maxHeight = 'calc(100vh - ' + pos.y + 'px - 20px)';
+      avoidFixedOverlap();
     } else {
       panel.dataset.ikbmSide = fixedSide;
       sideToggle.textContent = '⇄';
