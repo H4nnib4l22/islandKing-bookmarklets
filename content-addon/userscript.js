@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.6
+// @version      1.6.7
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -552,6 +552,17 @@
       // breite Spalten. tabular-nums erzwingt einheitliche Ziffernbreite,
       // live per Claude-in-Chrome als Ursache bestaetigt und gefixt.
       costP.style.fontVariantNumeric = 'tabular-nums';
+      // Nutzerwunsch: Icons sollen je Spalte an derselben Position stehen,
+      // unabhaengig davon, wie lang die Zahl in dieser Zeile/Spalte ist -
+      // die Website vererbt text-align:right von einem Vorfahren-Div
+      // ("shrink-0 text-right"), das rechtsbuendige Grid-Items lassen das
+      // Icon abhaengig von der Zahlenlaenge hin- und herspringen (live per
+      // Claude-in-Chrome bestaetigt). justify-items:start + text-align:left
+      // ueberschreiben das - jede Zelle nimmt nur ihre eigene Breite und
+      // sitzt links in der (durch max-content ohnehin breiten genug)
+      // Spalte, Icon-Position wird dadurch zeilenunabhaengig fix.
+      costP.style.textAlign = 'left';
+      costP.style.justifyItems = 'start';
     }
     const haveSpans = Array.from(costP.querySelectorAll('span[data-ikba-stock]'));
     originalSpans.forEach((span, i) => {
