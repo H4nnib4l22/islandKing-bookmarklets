@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.7
+// @version      1.7.0
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -611,6 +611,47 @@
     });
   }
 
+  // -------------------------------------------------------------------
+  // Button-Beschriftung bei laufendem Bau/laufender Forschung (Feature 8,
+  // v1.7.0). Live verifiziert 2026-09-18: waehrend ein Eintrag laeuft, sind
+  // alle Buttons disabled, der laufende traegt aber weiter "Erforschen → N"
+  // (Forschung) bzw. ersetzt die Site ihn nur teils durch "🏗 wird
+  // ausgebaut". Laufende Eintraege kommen aus den schon genutzten
+  // Endpunkten (research-overview.researchQueueItems bzw. island-overview.
+  // buildQueueItems); Zuordnung zur Zeile ueber "<Name> Stufe <Ziel-1> von".
+  // -------------------------------------------------------------------
+
+  async function runningItems() {
+    if (location.pathname === '/research') {
+      const r = await fetchResearchOverviewCached();
+      return { verb: 'Wird erforscht', levels: new Map(((r && r.researchQueueItems) || []).map((q) => [q.researchName, q.targetLevel])) };
+    }
+    if (location.pathname.startsWith('/island/')) {
+      return { verb: 'Wird gebaut', levels: await fetchIslandLevels(location.pathname.split('/')[2]) };
+    }
+    return null;
+  }
+
+  function tickRunningLabels() {
+    const relevant = SECTIONS.map(findSection).filter(Boolean);
+    if (!relevant.length) return;
+    runningItems().then((running) => {
+      if (!running) return;
+      relevant.forEach(({ ul }) => {
+        Array.from(ul.children).forEach((li) => {
+          const btn = li.querySelector('button');
+          if (!btn) return;
+          for (const [name, target] of running.levels) {
+            if (li.textContent.includes(name + ' Stufe ' + (target - 1) + ' von')) {
+              if (btn.textContent.trim() !== running.verb) btn.textContent = running.verb;
+              return;
+            }
+          }
+        });
+      });
+    });
+  }
+
   tick();
-  setInterval(tick, 500);
+  setInterval(() => { tick(); tickRunningLabels(); }, 500);
 })();
