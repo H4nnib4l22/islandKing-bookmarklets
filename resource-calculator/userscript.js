@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.4.1
+// @version      1.4.2
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -40,7 +40,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.4.1';
+  const VERSION = 'v1.4.2';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -441,7 +441,10 @@
       navIcon = document.createElement('button');
       navIcon.type = 'button';
       navIcon.title = 'Ressourcenrechner (minimiert) - Klick zum Wiederherstellen';
-      navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+      // Nutzerwunsch: einfarbig statt buntes Emoji, damit es zu den
+      // Mehrfarben-freien SVG-Icons der Menueleiste passt (siehe ↻/✓/↑/⚠
+      // beim Update-Check-Button fuer dasselbe Muster).
+      navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer;filter:grayscale(1) brightness(1.6)';
       navIcon.textContent = '🏝️';
       navIcon.addEventListener('click', restorePanel);
       tray.appendChild(navIcon);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.1
+// @version      1.2.2
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -45,7 +45,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.2.1';
+  const VERSION = 'v1.2.2';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -500,7 +500,10 @@
       navIcon = document.createElement('button');
       navIcon.type = 'button';
       navIcon.title = 'Spy Report Lookup (minimiert) - Klick zum Wiederherstellen';
-      navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer';
+      // Nutzerwunsch: einfarbig statt buntes Emoji, damit es zu den
+      // Mehrfarben-freien SVG-Icons der Menueleiste passt (siehe ↻/✓/↑/⚠
+      // beim Update-Check-Button fuer dasselbe Muster).
+      navIcon.style.cssText = 'display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer;filter:grayscale(1) brightness(1.6)';
       navIcon.textContent = '🔍';
       navIcon.addEventListener('click', restorePanel);
       tray.appendChild(navIcon);
