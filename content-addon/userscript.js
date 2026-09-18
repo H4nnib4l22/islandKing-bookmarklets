@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.3
+// @version      1.6.4
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, und live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten.
 // @author       Oscar
 // @license      MIT
@@ -540,8 +540,11 @@
       Array.from(costP.childNodes).forEach((n) => { if (n.nodeType === 3) costP.removeChild(n); });
       costP.style.display = 'grid';
       costP.style.gridTemplateColumns = 'repeat(' + originalSpans.length + ', max-content)';
-      costP.style.columnGap = '14px';
-      costP.style.rowGap = '2px';
+      // Nutzerwunsch: mehr Luft zwischen Kosten- und Bestandszeile sowie
+      // zwischen den Spalten, sonst wirken die (oft laengeren) Bestands-
+      // zahlen bei knapper Spaltenbreite zu dicht gedraengt.
+      costP.style.columnGap = '18px';
+      costP.style.rowGap = '6px';
     }
     const haveSpans = Array.from(costP.querySelectorAll('span[data-ikba-stock]'));
     originalSpans.forEach((span, i) => {
