@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.31
+// @version      1.6.32
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -142,28 +142,30 @@
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
-  // Nutzer-Report 2026-09-18: frei positionierte Panels nehmen NICHT an
-  // computeStackTop() teil (sie haben kein data-ikbm-side mehr), koennen
-  // sich also beim Ausklappen ueber ein anderes Panel legen (fest ODER
-  // frei), das gerade zufaellig an derselben Stelle sitzt. Simpler
-  // Greedy-Fix statt echtem Bin-Packing: nach dem Ausklappen pruefen, ob
-  // die eigene Box irgendein anderes Panel ueberlappt, und falls ja, unter
-  // dessen Unterkante schieben - wiederholt (max. 6x), damit auch Ketten
-  // mehrerer ueberlappender Panels aufgeloest werden.
-  function avoidOverlap(panel) {
-    const GAP = 12;
-    for (let i = 0; i < 6; i++) {
-      const rect = panel.getBoundingClientRect();
-      const other = Array.from(document.querySelectorAll('[data-ikbm-panel]')).find((el) => {
-        if (el === panel) return false;
-        const r = el.getBoundingClientRect();
-        return rect.left < r.right && rect.right > r.left && rect.top < r.bottom && rect.bottom > r.top;
-      });
-      if (!other) break;
-      const newTop = Math.round(other.getBoundingClientRect().bottom + GAP);
-      panel.style.top = newTop + 'px';
-      panel.style.maxHeight = 'calc(100vh - ' + newTop + 'px - 20px)';
-    }
+  // Nutzer-Report 2026-09-18: erster Fix verschob beim Ausklappen das
+  // WACHSENDE Panel selbst unter das andere - fuehlte sich wie ueberlagern/
+  // ueberspringen an, weil das Panel dabei seine eigene Position verlor.
+  // Zweiter Anlauf (Nutzerwunsch): das wachsende/schrumpfende Panel bleibt
+  // wo es ist, stattdessen wird die Hoehendifferenz an eng angedockte
+  // Panels DARUNTER weitergereicht - Ausklappen schiebt sie um genau die
+  // Differenz nach unten, Einklappen holt sie um dieselbe Differenz zurueck.
+  // "eng angedockt" = Abstand vor der Groessenaenderung zwischen -1px
+  // (Rundungstoleranz/bereits ueberlappend) und 30px - ein bewusst frei
+  // weiter weg plaziertes Panel soll NICHT mitgezogen werden. Rekursiv fuer
+  // Ketten mehrerer gestapelter Panels.
+  function pushDockedBelow(rect, delta) {
+    if (!delta) return;
+    document.querySelectorAll('[data-ikbm-panel]').forEach((el) => {
+      if (el.dataset.ikbmSide !== 'free') return;
+      const r = el.getBoundingClientRect();
+      if (rect.left >= r.right || rect.right <= r.left) return;
+      const gapBefore = r.top - (rect.bottom - delta);
+      if (gapBefore < -1 || gapBefore > 30) return;
+      const newTop = Math.round(r.top + delta);
+      el.style.top = newTop + 'px';
+      el.style.maxHeight = 'calc(100vh - ' + newTop + 'px - 20px)';
+      pushDockedBelow(el.getBoundingClientRect(), delta);
+    });
   }
 
   // Live an den Hell-/Dunkelmodus der Seite gekoppelt: islandking.ch
@@ -337,15 +339,20 @@
     updateCheckBtn.addEventListener('click', () => checkForUpdate(updateCheckBtn));
 
     collapseToggle.addEventListener('click', () => {
+      const rectBefore = panel.getBoundingClientRect();
       const next = !body.hidden;
       body.hidden = next;
       collapseToggle.innerHTML = (next ? '▸ ' : '▾ ') + title;
       header.style.marginBottom = next ? '0' : '8px';
       writePref(collapsedKey, next ? '1' : '0');
       // Nutzerwunsch: auch frei positionierte Panels sollen sich beim
-      // Ausklappen nicht auf ein anderes Panel legen - fest gestapelte
-      // Panels vermeiden das schon ueber computeStackTop().
-      if (!next && posMode === 'free') avoidOverlap(panel);
+      // Auf-/Zuklappen nicht auf ein anderes Panel legen bzw. angedockte
+      // Panels darunter mitnehmen - fest gestapelte Panels vermeiden das
+      // schon ueber computeStackTop().
+      if (posMode === 'free') {
+        const rectAfter = panel.getBoundingClientRect();
+        pushDockedBelow(rectAfter, rectAfter.height - rectBefore.height);
+      }
     });
 
     function reposition() {

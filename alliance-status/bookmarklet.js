@@ -209,24 +209,28 @@
     return Math.round(others.length ? maxBottom + 12 : maxBottom);
   }
 
-  // Nutzer-Report 2026-09-18: frei positionierte Panels nehmen NICHT an
-  // computeStackTop() teil (kein data-ikbm-side mehr), koennen sich also
-  // beim Ausklappen ueber ein anderes Panel legen. Simpler Greedy-Fix:
-  // nach dem Ausklappen pruefen, ob die eigene Box irgendein anderes Panel
-  // ueberlappt, und falls ja, unter dessen Unterkante schieben - wiederholt
-  // (max. 6x) fuer Ketten mehrerer ueberlappender Panels.
-  function avoidOverlap(panel) {
-    const GAP = 12;
-    for (let i = 0; i < 6; i++) {
-      const rect = panel.getBoundingClientRect();
-      const other = Array.from(document.querySelectorAll('[data-ikbm-panel]')).find((el) => {
-        if (el === panel) return false;
-        const r = el.getBoundingClientRect();
-        return rect.left < r.right && rect.right > r.left && rect.top < r.bottom && rect.bottom > r.top;
-      });
-      if (!other) break;
-      panel.style.top = Math.round(other.getBoundingClientRect().bottom + GAP) + 'px';
-    }
+  // Nutzer-Report 2026-09-18: erster Fix verschob beim Ausklappen das
+  // WACHSENDE Panel selbst unter das andere - fuehlte sich wie ueberlagern/
+  // ueberspringen an, weil das Panel dabei seine eigene Position verlor.
+  // Zweiter Anlauf (Nutzerwunsch): das wachsende/schrumpfende Panel bleibt
+  // wo es ist, stattdessen wird die Hoehendifferenz an eng angedockte
+  // Panels DARUNTER weitergereicht - Ausklappen schiebt sie um genau die
+  // Differenz nach unten, Einklappen holt sie um dieselbe Differenz zurueck.
+  // "eng angedockt" = Abstand vor der Groessenaenderung zwischen -1px
+  // (Rundungstoleranz/bereits ueberlappend) und 30px - ein bewusst frei
+  // weiter weg plaziertes Panel soll NICHT mitgezogen werden. Rekursiv fuer
+  // Ketten mehrerer gestapelter Panels.
+  function pushDockedBelow(rect, delta) {
+    if (!delta) return;
+    document.querySelectorAll('[data-ikbm-panel]').forEach((el) => {
+      if (el.dataset.ikbmSide !== 'free') return;
+      const r = el.getBoundingClientRect();
+      if (rect.left >= r.right || rect.right <= r.left) return;
+      const gapBefore = r.top - (rect.bottom - delta);
+      if (gapBefore < -1 || gapBefore > 30) return;
+      el.style.top = Math.round(r.top + delta) + 'px';
+      pushDockedBelow(el.getBoundingClientRect(), delta);
+    });
   }
 
   // Live an den Hell-/Dunkelmodus der Seite gekoppelt - 1:1 aus dem
@@ -282,7 +286,7 @@
   // + BODY_HEIGHT 330px -> 190px (Nutzerwunsch, siehe userscript.js).
   // v1.6.15: 190px war zu knapp - BODY_HEIGHT auf 300px angehoben.
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.25';
+  const VERSION = 'v1.6.26';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   const panel = document.createElement('div');
@@ -339,6 +343,7 @@
   const posMenuFree = posMenu.querySelector('[data-role="posmenu-free"]');
 
   collapseToggle.addEventListener('click', () => {
+    const rectBefore = panel.getBoundingClientRect();
     const next = !panelBody.hidden;
     panelBody.hidden = next;
     panelBody.style.display = next ? 'none' : 'flex';
@@ -346,7 +351,10 @@
     header.style.marginBottom = next ? '0' : '8px';
     writePref(COLLAPSED_KEY, next ? '1' : '0');
     updateHeaderDot();
-    if (!next && posMode === 'free') avoidOverlap(panel);
+    if (posMode === 'free') {
+      const rectAfter = panel.getBoundingClientRect();
+      pushDockedBelow(rectAfter, rectAfter.height - rectBefore.height);
+    }
   });
 
   function reposition() {
