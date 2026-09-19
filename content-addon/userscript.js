@@ -496,7 +496,7 @@
     const promise = fetch('/api/research-overview', { headers: { Authorization: 'Bearer ' + token } })
       .then((r) => r.json())
       .catch(() => null);
-    researchOverviewCache = { expires: Date.now() + 10000, promise };
+    researchOverviewCache = { expires: Date.now() + 2000, promise };
     return promise;
   }
 
