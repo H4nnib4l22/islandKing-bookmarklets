@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.4.2
+// @version      1.5.0
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -40,7 +40,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.4.2';
+  const VERSION = 'v1.5.0';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -619,6 +619,7 @@
       + '</select><br><br>'
       + 'Ziel: <select id="ikrc-target" style="width:100%;' + FIELD_STYLE + '"></select><br><br>'
       + '<span id="ikrc-level-label">Ziel-Stufe:</span> <input id="ikrc-level" type="number" min="1" value="1" style="width:60px;' + FIELD_STYLE + '"><br><br>'
+      + '<label style="cursor:pointer"><input id="ikrc-incl-done" type="checkbox"> Erfüllte Voraussetzungen mitrechnen (z. B. neue Kolonie: Hauptgebäude dort noch nicht gebaut)</label><br><br>'
       + '<button id="ikrc-calc" style="padding:4px 12px;background:#1f6feb;color:#fff;border:none;border-radius:4px;cursor:pointer">Berechnen</button>'
       + '<div id="ikrc-result" style="margin-top:12px"></div>';
 
@@ -708,7 +709,20 @@
         // aktiv ist. catalogPerUnit bleibt null, wenn kein Katalog-
         // Referenzwert vorliegt (Mehrstufiger Sprung bei Gebaeude/Forschung).
         const stepBonuses = [];
-        for (const step of path.steps.filter(s => !s.done)) {
+        // Checkbox: erfüllte Schritte trotzdem einrechnen (tech-path wertet
+        // Voraussetzungen accountweit als erfüllt, eine frische Kolonie
+        // braucht sie aber selbst). Kosten/Zeit dann direkt aus tech-path.
+        const inclDone = document.getElementById('ikrc-incl-done').checked;
+        const noCostSteps = [];
+        for (const step of path.steps.filter(s => inclDone || !s.done)) {
+          if (step.done) {
+            if (step.cost) {
+              for (const k of Object.keys(liveCost)) liveCost[k] += step.cost[k] || 0;
+              liveSeconds += step.seconds || 0;
+            } else noCostSteps.push(step.name);
+            stepBonuses.push({ name: step.name + ' ✓', bonusPercent: null });
+            continue;
+          }
           const qty = step.need - step.have;
           let cost = null, seconds = null, catalogPerUnit = null;
           if (step.type === 'building') {
@@ -793,6 +807,7 @@
         }).join(' → ');
 
         resultDiv.innerHTML = ''
+          + (noCostSteps.length ? '<div style="color:var(--ikbm-gold);margin-bottom:6px">⚠️ Für ' + noCostSteps.join(', ') + ' liefert die API keine Kosten (bereits erfüllt) — nicht eingerechnet.</div>' : '')
           + (unverifiedSteps.length ? '<div style="color:var(--ikbm-gold);margin-bottom:6px">⚠️ Mehrstufiger Sprung bei ' + unverifiedSteps.join(', ') + ' — Wert stammt ungeprüft von tech-path, kann abweichen.</div>' : '')
           + (overCapacity ? '<div style="color:var(--ikbm-gold);margin-bottom:6px">⚠️ Zielkosten übersteigen dein Lager (' + isl.capacity.toLocaleString() + ') — Lager ausbauen nötig.</div>' : '')
           + (stepBonuses.length ? '<div style="opacity:.8;margin-bottom:6px">' + (path.steps.length > 1 ? 'Voraussetzungskette: ' : 'Zeitbonus: ') + chainLine + '</div>' : '')
