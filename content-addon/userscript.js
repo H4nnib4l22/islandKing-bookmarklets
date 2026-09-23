@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.9.1
+// @version      1.9.2
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
@@ -722,8 +722,27 @@
   // waere die Tabelle bei 10 Schiffs- + 5 Soldatentypen unnoetig breit.
   // -------------------------------------------------------------------
 
-  // Baut eine Insel x Typ-Tabelle (gleiche Tailwind-Klassen wie das
-  // Original) und haengt sie nach anchorEl an. Fuer Schiffe und Soldaten
+  // Insel-Namenszelle 1:1 wie im Original-Empire-Table nachgebaut (live
+  // per Claude-in-Chrome verifiziert): <a href="/island/<id>" class=
+  // "font-medium text-ocean-700 hover:underline">Name</a> + <span
+  // class="text-xs text-gray-400"> (x | y)</span>.
+  function buildIslandNameCell(island) {
+    const td = document.createElement('td');
+    td.className = 'px-3 py-2';
+    const a = document.createElement('a');
+    a.href = '/island/' + island.id;
+    a.className = 'font-medium text-ocean-700 hover:underline';
+    a.textContent = island.name;
+    const span = document.createElement('span');
+    span.className = 'text-xs text-gray-400';
+    span.textContent = ' (' + island.coordinates.x + ' | ' + island.coordinates.y + ')';
+    td.append(a, span);
+    return td;
+  }
+
+  // Baut eine Insel x Typ-Tabelle im Original-Look (gleiche Tailwind-
+  // Klassen wie die bestehende Empire-Tabelle, inkl. Summenzeile im
+  // tfoot) und haengt sie nach anchorEl an. Fuer Schiffe und Soldaten
   // getrennt aufgerufen (Nutzerwunsch: zwei eigene Tabellen statt einer
   // gemeinsamen breiten).
   function buildUnitTable(marker, islands, overviews, listKey) {
@@ -750,24 +769,41 @@
     thead.appendChild(headRow);
     newTable.appendChild(thead);
 
+    const totals = names.map(() => 0);
     const tbody = document.createElement('tbody');
     islands.forEach((island, i) => {
       const m = new Map((overviews[i][listKey] || []).map((e) => [e.name, e.count]));
       const tr = document.createElement('tr');
       tr.className = 'border-b border-gray-50 last:border-0';
-      const nameTd = document.createElement('td');
-      nameTd.className = 'px-3 py-2';
-      nameTd.textContent = island.name;
-      tr.appendChild(nameTd);
-      names.forEach((name) => {
+      tr.appendChild(buildIslandNameCell(island));
+      names.forEach((name, j) => {
+        const count = m.get(name) || 0;
+        totals[j] += count;
         const td = document.createElement('td');
-        td.className = 'px-3 py-2';
-        td.textContent = formatNum(m.get(name) || 0);
+        td.className = 'px-3 py-2 text-right';
+        td.textContent = formatNum(count);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
     newTable.appendChild(tbody);
+
+    const tfoot = document.createElement('tfoot');
+    const totalTr = document.createElement('tr');
+    totalTr.className = 'border-t border-gray-200 font-semibold text-ocean-900';
+    const totalNameTd = document.createElement('td');
+    totalNameTd.className = 'px-3 py-2';
+    totalNameTd.textContent = 'Summe (' + islands.length + ' Inseln)';
+    totalTr.appendChild(totalNameTd);
+    totals.forEach((sum) => {
+      const td = document.createElement('td');
+      td.className = 'px-3 py-2 text-right';
+      td.textContent = formatNum(sum);
+      totalTr.appendChild(td);
+    });
+    tfoot.appendChild(totalTr);
+    newTable.appendChild(tfoot);
+
     div.appendChild(newTable);
     return div;
   }
