@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.10.0
+// @version      1.10.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
@@ -72,15 +72,17 @@
  *    automatisch, nur bei Reload, ebenfalls live verifiziert). Rot, wenn
  *    der Bestand (noch) nicht fuer die Kosten dieser Zeile reicht, gruen
  *    sonst. Datenquelle /api/empire (resources/productionPerHour/capacity
- *    je Insel) - fuer /research und /barracks liefert
- *    /api/research-overview.homeIslandId, welche Insel das ist (beide
- *    werden immer aus der Heimatinsel bezahlt, keine Insel-ID in der URL
- *    oder ein Umschalter). /shipyard hat dagegen einen Insel-Tab-Umschalter
- *    (verifiziert live 2026-09-23: Klick auf einen Tab loest fuer GENAU
- *    diese Insel einen neuen /api/islands/<id>/overview-Request aus,
- *    Schiffe werden also nicht zwingend von der Heimatinsel bezahlt) -
- *    aktive Insel wird ueber die Tailwind-Klasse "bg-ocean-500" des
- *    aktiven Tab-Buttons erkannt, mit Fallback auf die Heimatinsel.
+ *    je Insel) - nur /research zahlt aus der Heimatinsel (Forschung ist
+ *    global, /api/research-overview.homeIslandId sagt welche Insel das
+ *    ist). Kaserne und Schiffswerft sind dagegen JE INSEL gebaut (Nutzer-
+ *    Korrektur 2026-09-23: eine urspruengliche "immer Heimatinsel"-Annahme
+ *    fuer /barracks war falsch, Kaserne ist nur zufaellig meist auf der
+ *    Heimatinsel zuerst gebaut) - beide Seiten zeigen entweder Insel-Tabs
+ *    (mehrere Inseln mit dieser Gebaeudeart, aktiv erkennbar an der
+ *    Tailwind-Klasse "bg-ocean-500", Klick loest live einen neuen
+ *    /api/islands/<id>/overview-Request fuer genau diese Insel aus) oder,
+ *    bei nur einer qualifizierenden Insel, reinen Text ohne Tabs - siehe
+ *    findDisplayedIsland().
  *
  * 6) Allianzkuerzel bei Berichten (v1.5.1) — auf /spy-reports und
  *    /battle-reports steht jetzt hinter jedem Spielernamen das
@@ -507,19 +509,28 @@
     return promise;
   }
 
-  // Forschung und Kaserne werden immer aus der Heimatinsel bezahlt
-  // (research-overview.homeIslandId) - keine der beiden Seiten hat eine
-  // Insel-ID in der URL oder einen Insel-Umschalter. /shipyard dagegen hat
-  // einen Insel-Tab-Umschalter (<button>Name (x | y)</button> je Insel,
-  // aktiv erkennbar an der Tailwind-Klasse "bg-ocean-500" - verifiziert
-  // live per Claude-in-Chrome 2026-09-23: Klick auf einen Tab loest einen
-  // neuen /api/islands/<id>/overview-Request fuer GENAU diese Insel aus,
-  // Schiffe werden also nicht zwingend von der Heimatinsel bezahlt).
-  function findActiveShipyardIsland(islands) {
+  // Nur Forschung wird immer aus der Heimatinsel bezahlt (research-overview.
+  // homeIslandId) - Forschung ist global, unabhaengig von einer einzelnen
+  // Insel. Kaserne und Schiffswerft sind dagegen JE INSEL gebaut (Nutzer-
+  // Korrektur 2026-09-23, live verifiziert: Nassau hat z.B. keine Kaserne,
+  // /island/464 zeigt in der Gebaeudeliste keinen Kaserne-Eintrag und keinen
+  // "Kaserne"-Link - /barracks zeigt deshalb nur Tortuga an, NICHT weil
+  // Kaserne "immer die Heimatinsel" waere, sondern weil dort zufaellig nur
+  // die Heimatinsel eine Kaserne hat). Beide Seiten zeigen die aktuell
+  // betrachtete Insel entweder als Tab-Buttons (mehrere qualifizierende
+  // Inseln, aktiv erkennbar an der Tailwind-Klasse "bg-ocean-500" - Klick
+  // loest live einen neuen /api/islands/<id>/overview-Request fuer GENAU
+  // diese Insel aus) oder, wenn nur eine Insel qualifiziert, als reiner
+  // Text "Name (x | y)" ohne Tabs (<p class="text-sm text-gray-500">Name
+  // <span class="text-xs">(x | y)</span></p>, identisch auf beiden Seiten).
+  function findDisplayedIsland(islands) {
     const btn = Array.from(document.querySelectorAll('button')).find(
       (b) => /\bbg-ocean-500\b/.test(b.className) && /\(-?\d+\s*\|\s*-?\d+\)/.test(b.textContent)
     );
-    const m = btn && btn.textContent.match(/\((-?\d+)\s*\|\s*(-?\d+)\)/);
+    const headingSpan = !btn && Array.from(document.querySelectorAll('main p.text-sm.text-gray-500 span.text-xs'))
+      .find((s) => /\(-?\d+\s*\|\s*-?\d+\)/.test(s.textContent));
+    const text = btn ? btn.textContent : headingSpan && headingSpan.textContent;
+    const m = text && text.match(/\((-?\d+)\s*\|\s*(-?\d+)\)/);
     return m ? islands.find((i) => i.coordinates.x === +m[1] && i.coordinates.y === +m[2]) : null;
   }
 
@@ -529,12 +540,12 @@
     let islandId;
     if (location.pathname.startsWith('/island/')) {
       islandId = location.pathname.split('/')[2];
-    } else if (location.pathname === '/shipyard') {
-      const active = findActiveShipyardIsland(empire.data.islands);
-      // Fallback Heimatinsel: greift nur, wenn (noch) kein Tab als aktiv
-      // erkannt wird, z.B. bei nur einer Insel ohne sichtbare Tabs.
+    } else if (location.pathname === '/shipyard' || location.pathname === '/barracks') {
+      const active = findDisplayedIsland(empire.data.islands);
+      // Fallback Heimatinsel nur als letzter Ausweg, falls (noch) keine
+      // Insel erkannt wurde (z.B. Seite noch nicht fertig gerendert).
       islandId = active ? active.id : (await fetchResearchOverviewCached())?.homeIslandId;
-    } else if (location.pathname === '/research' || location.pathname === '/barracks') {
+    } else if (location.pathname === '/research') {
       const research = await fetchResearchOverviewCached();
       islandId = research && research.homeIslandId;
     }
