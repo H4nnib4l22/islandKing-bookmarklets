@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.9.2
+// @version      1.9.3
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
@@ -728,7 +728,7 @@
   // class="text-xs text-gray-400"> (x | y)</span>.
   function buildIslandNameCell(island) {
     const td = document.createElement('td');
-    td.className = 'px-3 py-2';
+    td.className = 'px-3 py-2 whitespace-nowrap';
     const a = document.createElement('a');
     a.href = '/island/' + island.id;
     a.className = 'font-medium text-ocean-700 hover:underline';
@@ -760,9 +760,9 @@
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     headRow.className = 'border-b border-gray-100 text-left text-xs uppercase text-gray-400';
-    ['Insel'].concat(names).forEach((label) => {
+    ['Insel'].concat(names).forEach((label, i) => {
       const th = document.createElement('th');
-      th.className = 'px-3 py-2';
+      th.className = i === 0 ? 'px-3 py-2 whitespace-nowrap' : 'px-3 py-2';
       th.textContent = label;
       headRow.appendChild(th);
     });
@@ -792,7 +792,7 @@
     const totalTr = document.createElement('tr');
     totalTr.className = 'border-t border-gray-200 font-semibold text-ocean-900';
     const totalNameTd = document.createElement('td');
-    totalNameTd.className = 'px-3 py-2';
+    totalNameTd.className = 'px-3 py-2 whitespace-nowrap';
     totalNameTd.textContent = 'Summe (' + islands.length + ' Inseln)';
     totalTr.appendChild(totalNameTd);
     totals.forEach((sum) => {
