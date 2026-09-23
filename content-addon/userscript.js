@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.8.1
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten, und Restzeit unter „wird ausgebaut“/„wird erforscht“.
+// @version      1.9.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und eine Flotte/Truppen-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -709,6 +709,90 @@
     });
   }
 
+  // -------------------------------------------------------------------
+  // Flotte & Truppen je Insel (Feature 10) — /empire zeigt bereits eine
+  // Tabelle mit Insel/Rohstoffen/Gebaeuden/Schiffs- UND Soldaten-SUMME
+  // je Insel (verifiziert live per Claude-in-Chrome), aber keine Aufschluesselung
+  // nach Typ. /api/islands/<id>/overview (bereits von fetchIslandOverview()
+  // fuer Feature 5 genutzt, 10s gecacht) liefert ships[]/soldiers[] mit
+  // name+count je Typ. Neue Tabelle direkt unter der bestehenden eingefuegt,
+  // gleiche Tailwind-Klassen wie das Original (Tabelle: "table"-Selektor auf
+  // /empire trifft nur die eine bestehende Tabelle, kein Heading noetig).
+  // Spalten nur fuer Typen, die auf MINDESTENS EINER Insel > 0 sind, sonst
+  // waere die Tabelle bei 10 Schiffs- + 5 Soldatentypen unnoetig breit.
+  // -------------------------------------------------------------------
+
+  async function tickEmpireUnitBreakdown() {
+    if (location.pathname !== '/empire') return;
+    const table = document.querySelector('table');
+    if (!table) return;
+    const wrapper = table.parentElement;
+    if (wrapper.nextElementSibling && wrapper.nextElementSibling.dataset.ikbaUnitTable) return;
+
+    const empire = await fetchEmpireCached();
+    if (!empire) return;
+    const islands = empire.data.islands;
+    const overviews = await Promise.all(islands.map((i) => fetchIslandOverview(i.id)));
+
+    const shipNames = [];
+    const soldierNames = [];
+    overviews.forEach((o) => {
+      (o.ships || []).forEach((s) => { if (s.count > 0 && !shipNames.includes(s.name)) shipNames.push(s.name); });
+      (o.soldiers || []).forEach((s) => { if (s.count > 0 && !soldierNames.includes(s.name)) soldierNames.push(s.name); });
+    });
+    if (!shipNames.length && !soldierNames.length) return;
+
+    const div = document.createElement('div');
+    div.dataset.ikbaUnitTable = '1';
+    div.className = 'mt-6 overflow-x-auto rounded-lg bg-white shadow';
+    const newTable = document.createElement('table');
+    newTable.className = 'w-full text-sm';
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headRow.className = 'border-b border-gray-100 text-left text-xs uppercase text-gray-400';
+    ['Insel'].concat(shipNames, soldierNames).forEach((label) => {
+      const th = document.createElement('th');
+      th.className = 'px-3 py-2';
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    newTable.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    islands.forEach((island, i) => {
+      const o = overviews[i];
+      const countByName = (list) => {
+        const m = new Map((list || []).map((e) => [e.name, e.count]));
+        return (name) => m.get(name) || 0;
+      };
+      const shipCount = countByName(o.ships);
+      const soldierCount = countByName(o.soldiers);
+      const tr = document.createElement('tr');
+      tr.className = 'border-b border-gray-50 last:border-0';
+      const nameTd = document.createElement('td');
+      nameTd.className = 'px-3 py-2';
+      nameTd.textContent = island.name;
+      tr.appendChild(nameTd);
+      shipNames.forEach((name) => {
+        const td = document.createElement('td');
+        td.className = 'px-3 py-2';
+        td.textContent = formatNum(shipCount(name));
+        tr.appendChild(td);
+      });
+      soldierNames.forEach((name) => {
+        const td = document.createElement('td');
+        td.className = 'px-3 py-2';
+        td.textContent = formatNum(soldierCount(name));
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    newTable.appendChild(tbody);
+    div.appendChild(newTable);
+    wrapper.insertAdjacentElement('afterend', div);
+  }
+
   tick();
-  setInterval(() => { tick(); tickRunningResearch(); tickRunningBuilds(); }, 500);
+  setInterval(() => { tick(); tickRunningResearch(); tickRunningBuilds(); tickEmpireUnitBreakdown(); }, 500);
 })();
