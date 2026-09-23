@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.9.3
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungskosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
+// @version      1.10.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -59,21 +59,28 @@
  *    native Value-Setter + "input"-Event noetig, damit Reacts
  *    kontrollierte Inputs (kein Vue wie bei Kaserne/Handel) reagieren.
  *
- * 7) Aktuelle Rohstoffe unter Bau-/Forschungskosten (v1.6.0) — auf
- *    /island/<id> (Gebäude-Liste) und /research zeigt jede Zeile schon die
- *    Kosten (<p class="mt-1 text-xs text-gray-500"> mit einem <span> je
- *    Rohstoff: <img alt="wood|stone|iron|coal"> + Betrag, identisches
- *    Markup auf beiden Seiten, verifiziert live per Claude-in-Chrome
- *    2026-09-18). Darunter fügt dieses Script eine zweite Zeile "Du hast:"
- *    ein, mit dem aktuellen Bestand je dort genanntem Rohstoff - live
- *    hochgezaehlt anhand productionPerHour (die Seite selbst aktualisiert
- *    ihre eigene Kopfzeilen-Anzeige NICHT automatisch, nur bei Reload,
- *    ebenfalls live verifiziert). Rot, wenn der Bestand (noch) nicht fuer
- *    die Kosten dieser Zeile reicht, gruen sonst. Datenquelle /api/empire
- *    (resources/productionPerHour/capacity je Insel) - fuer /research
- *    liefert /api/research-overview.homeIslandId, welche Insel das ist
- *    (Forschung wird immer aus der Heimatinsel bezahlt, nicht der gerade
- *    betrachteten).
+ * 7) Aktuelle Rohstoffe unter Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten
+ *    (v1.6.0, erweitert auf Kaserne+Schiffswerft in v1.10.0) — auf
+ *    /island/<id> (Gebäude-Liste), /research, /barracks und /shipyard zeigt
+ *    jede Zeile schon die Kosten (<p class="mt-1 text-xs text-gray-500">
+ *    mit einem <span> je Rohstoff: <img alt="wood|stone|iron|coal"> +
+ *    Betrag, identisches Markup auf allen vier Seiten, verifiziert live per
+ *    Claude-in-Chrome 2026-09-18/2026-09-23). Darunter fügt dieses Script
+ *    eine zweite Zeile "Du hast:" ein, mit dem aktuellen Bestand je dort
+ *    genanntem Rohstoff - live hochgezaehlt anhand productionPerHour (die
+ *    Seite selbst aktualisiert ihre eigene Kopfzeilen-Anzeige NICHT
+ *    automatisch, nur bei Reload, ebenfalls live verifiziert). Rot, wenn
+ *    der Bestand (noch) nicht fuer die Kosten dieser Zeile reicht, gruen
+ *    sonst. Datenquelle /api/empire (resources/productionPerHour/capacity
+ *    je Insel) - fuer /research und /barracks liefert
+ *    /api/research-overview.homeIslandId, welche Insel das ist (beide
+ *    werden immer aus der Heimatinsel bezahlt, keine Insel-ID in der URL
+ *    oder ein Umschalter). /shipyard hat dagegen einen Insel-Tab-Umschalter
+ *    (verifiziert live 2026-09-23: Klick auf einen Tab loest fuer GENAU
+ *    diese Insel einen neuen /api/islands/<id>/overview-Request aus,
+ *    Schiffe werden also nicht zwingend von der Heimatinsel bezahlt) -
+ *    aktive Insel wird ueber die Tailwind-Klasse "bg-ocean-500" des
+ *    aktiven Tab-Buttons erkannt, mit Fallback auf die Heimatinsel.
  *
  * 6) Allianzkuerzel bei Berichten (v1.5.1) — auf /spy-reports und
  *    /battle-reports steht jetzt hinter jedem Spielernamen das
@@ -500,20 +507,38 @@
     return promise;
   }
 
-  // Forschung wird immer aus der Heimatinsel bezahlt (research-overview.
-  // homeIslandId), unabhaengig davon, welche Insel man sich gerade
-  // anschaut - /research hat dafuer auch keine Insel-ID in der URL.
+  // Forschung und Kaserne werden immer aus der Heimatinsel bezahlt
+  // (research-overview.homeIslandId) - keine der beiden Seiten hat eine
+  // Insel-ID in der URL oder einen Insel-Umschalter. /shipyard dagegen hat
+  // einen Insel-Tab-Umschalter (<button>Name (x | y)</button> je Insel,
+  // aktiv erkennbar an der Tailwind-Klasse "bg-ocean-500" - verifiziert
+  // live per Claude-in-Chrome 2026-09-23: Klick auf einen Tab loest einen
+  // neuen /api/islands/<id>/overview-Request fuer GENAU diese Insel aus,
+  // Schiffe werden also nicht zwingend von der Heimatinsel bezahlt).
+  function findActiveShipyardIsland(islands) {
+    const btn = Array.from(document.querySelectorAll('button')).find(
+      (b) => /\bbg-ocean-500\b/.test(b.className) && /\(-?\d+\s*\|\s*-?\d+\)/.test(b.textContent)
+    );
+    const m = btn && btn.textContent.match(/\((-?\d+)\s*\|\s*(-?\d+)\)/);
+    return m ? islands.find((i) => i.coordinates.x === +m[1] && i.coordinates.y === +m[2]) : null;
+  }
+
   async function currentIslandStock() {
+    const empire = await fetchEmpireCached();
+    if (!empire) return null;
     let islandId;
     if (location.pathname.startsWith('/island/')) {
       islandId = location.pathname.split('/')[2];
-    } else if (location.pathname === '/research') {
+    } else if (location.pathname === '/shipyard') {
+      const active = findActiveShipyardIsland(empire.data.islands);
+      // Fallback Heimatinsel: greift nur, wenn (noch) kein Tab als aktiv
+      // erkannt wird, z.B. bei nur einer Insel ohne sichtbare Tabs.
+      islandId = active ? active.id : (await fetchResearchOverviewCached())?.homeIslandId;
+    } else if (location.pathname === '/research' || location.pathname === '/barracks') {
       const research = await fetchResearchOverviewCached();
       islandId = research && research.homeIslandId;
     }
     if (!islandId) return null;
-    const empire = await fetchEmpireCached();
-    if (!empire) return null;
     const island = empire.data.islands.find((i) => String(i.id) === String(islandId));
     if (!island) return null;
     return { resources: island.resources, perHour: island.productionPerHour, capacity: island.capacity, fetchedAt: empire.fetchedAt };
@@ -606,11 +631,23 @@
     });
   }
 
+  // Kaserne/Schiffswerft haben kein Heading zum Verankern wie SECTIONS
+  // (Kaserne: genau ein <ul>, Schiffswerft: Bauliste + Reparaturliste als
+  // zwei <ul> - siehe Kommentare bei tickBarracksQuickAdd/tickHarborQuickFill).
+  // Einfach alle <ul> der Seite nehmen, ensureStockRow greift ohnehin nur,
+  // wenn ein <li> eine Kosten-Zeile mit Rohstoff-Icons hat.
+  function relevantStockLists() {
+    if (location.pathname === '/shipyard' || location.pathname === '/barracks') {
+      return Array.from(document.querySelectorAll('ul'));
+    }
+    return SECTIONS.map(findSection).filter(Boolean).map((s) => s.ul);
+  }
+
   function tickResourceStock() {
-    const relevant = SECTIONS.map(findSection).filter(Boolean);
+    const relevant = relevantStockLists();
     if (!relevant.length) return;
     currentIslandStock().then((stock) => {
-      relevant.forEach(({ ul }) => {
+      relevant.forEach((ul) => {
         Array.from(ul.children).forEach((li) => {
           const costP = findCostRow(li);
           if (costP) ensureStockRow(costP, stock);
