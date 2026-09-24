@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.7.2
+// @version      1.8.0
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -198,7 +198,7 @@
   // wiederholt aus dem Tritt (Nutzer-Report 2026-09-15: Panel zeigte v1.6.18
   // bei installierter v1.6.21). Fallback-String nur fuer den Fall, dass
   // GM_info in einem Userscript-Manager mal fehlt.
-  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.7.2');
+  const VERSION = 'v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '1.8.0');
   const VERSION_HTML = ' <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -691,9 +691,8 @@
     { name: 'altes Piratenschiff', attack: 10, hp: 200 },
     { name: 'Piratenschiff', attack: 120, hp: 800 },
   ];
-  // Baukosten nur der vom Spieler baubaren Schiffe (Piratenschiffe haben
-  // kein unitCost, koennen nicht gebaut/repariert werden) - live verifiziert
-  // ueber /api/islands/:id/overview -> ships[].unitCost (2026-09-13).
+  // Baukosten der baubaren Schiffe - live verifiziert ueber
+  // /api/islands/:id/overview -> ships[].unitCost (2026-09-13).
   const SHIP_BUILD_COST = {
     'Schlachtschiff': { wood: 200000, stone: 80000, iron: 80000 },
     'schwere Galeere': { wood: 40000, stone: 500, iron: 15600 },
@@ -702,6 +701,10 @@
     'kleines Frachtschiff': { wood: 6500, stone: 150, iron: 4100 },
     'grosses Frachtschiff': { wood: 24000, stone: 500, iron: 12000 },
     'Kolonisationsschiff': { wood: 30000, stone: 10000, iron: 15000 },
+    // Erbeutete Piratenschiffe sind reparierbar - Kosten aus echten Dock-
+    // Reparaturzeilen zurueckgerechnet (2026-09-24, 8 bzw. 2 Zeilen exakt).
+    'Piratenschiff': { wood: 70000, stone: 500, iron: 17000 },
+    'grosses Piratenschiff': { wood: 80000, stone: 30000, iron: 50000 },
   };
   // Ressourcen-Icons statt Emoji fuer die Reparaturkosten-Anzeige - direkt
   // von islandking.ch selbst geladen (same-origin, /resources/<key>.webp,
@@ -744,9 +747,9 @@
     let rounds = 0;
 
     while (round <= maxRounds) {
-      const totalAtk_A = att.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp) * u.attack : 0), 0);
+      const totalAtk_A = att.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp - 1e-9) * u.attack : 0), 0);
       const totalHp_A = att.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
-      const totalAtk_D = def.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp) * u.attack : 0), 0);
+      const totalAtk_D = def.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp - 1e-9) * u.attack : 0), 0);
       const totalHp_D = def.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
 
       if (totalHp_A <= 0 || totalHp_D <= 0) break;
@@ -754,13 +757,15 @@
       def.forEach((u) => {
         if (u.curHpPool > 0 && totalHp_D > 0) {
           const share = u.curHpPool / totalHp_D;
-          u.curHpPool = Math.max(0, u.curHpPool - totalAtk_A * share);
+          u.curHpPool = u.curHpPool - totalAtk_A * share;
+          if (u.curHpPool < 1e-6) u.curHpPool = 0;
         }
       });
       att.forEach((u) => {
         if (u.curHpPool > 0 && totalHp_A > 0) {
           const share = u.curHpPool / totalHp_A;
-          u.curHpPool = Math.max(0, u.curHpPool - totalAtk_D * share);
+          u.curHpPool = u.curHpPool - totalAtk_D * share;
+          if (u.curHpPool < 1e-6) u.curHpPool = 0;
         }
       });
 
@@ -771,7 +776,7 @@
       round++;
     }
 
-    const toFinal = (list) => list.map((u) => Object.assign({}, u, { after: Math.ceil(Math.max(0, u.curHpPool) / u.hp) }));
+    const toFinal = (list) => list.map((u) => Object.assign({}, u, { after: Math.ceil(Math.max(0, u.curHpPool) / u.hp - 1e-9) }));
     const attFinal = toFinal(att);
     const defFinal = toFinal(def);
     const defDestroyed = defFinal.every((u) => u.after === 0) && attFinal.some((u) => u.after > 0);
@@ -1058,37 +1063,38 @@
       } else {
         const input = combat.panel.querySelector('[data-ikcc-bldg-lv="' + b.name + '"]');
         const lv = parseInt(input.value) || 0;
-        if (lv > 0) units.push({ name: b.name, attack: b.perLv.attack * lv, hp: b.perLv.hp * lv, count: 1 });
+        // Stufe = Anzahl Einheiten mit perLv-Werten (DP5/DP6 2026-09-24: 9 leichte
+        // Tuerme zaehlen als 9 Einheiten a 30/100, nicht als 1 Einheit 270/900).
+        if (lv > 0) units.push({ name: b.name, attack: b.perLv.attack, hp: b.perLv.hp, count: lv });
       }
     });
     return units;
   }
 
-  // Bei Ueberleben mit angeschlagenem HP-Pool geht die letzte (angebrochene)
-  // Einheit nicht kampfbereit, sondern beschaedigt ins Reparaturdock zurueck
-  // (Nutzer-Beobachtung 2026-09-13: 1 von 2 Schlachtschiffen kam mit 76%
-  // SCHADEN ins Dock). curHpPool minus die vollen Einheiten davor = Rest-HP
-  // der angebrochenen letzten Einheit, 100% minus deren Anteil = Schaden%.
-  //
-  // 2026-09-15: EINZELSCHIFF-AUSNAHME, live gegen /api/combat/simulate
-  // verifiziert (>25 Faelle: 1 Schiff jeden Typs, 1-5 Runden, knapper wie
-  // klarer Sieg, immer dasselbe Ergebnis). Besteht eine Flottenseite aus
-  // GENAU 1 Schiff (unabhaengig vom Typ), liefert die echte API in JEDEM
-  // Fall 0% Dock-Schaden - nie einen angeschlagenen Zwischenzustand, nur
-  // "unversehrt ueberlebt" oder "komplett verloren". Unser kontinuierliches
-  // HP-Pool-Modell nimmt dagegen immer einen anteiligen Rest-Schaden an,
-  // was bei genau diesem (sehr haeufigen) Fall systematisch falsche
-  // Reparaturkosten vorhersagte (Nutzer-Report: Rechner 27-30% Schaden,
-  // echter Kampfbericht 0%). Mehrschiff-Flotten folgen einer komplexeren,
-  // noch nicht vollstaendig geklaerten Regel (siehe
-  // project_islandking_kampfrechner_overkill_no_returnfire.md in der
-  // Claude-Code-Memory) - dort bleibt die bisherige Naeherung bestehen.
-  function dockDamagePercent(f, totalBeforeCount) {
-    if (!f || f.after <= 0) return null;
-    if (totalBeforeCount === 1) return null;
-    const rest = f.curHpPool - (f.after - 1) * f.hp;
-    const restPct = Math.round((rest / f.hp) * 100);
-    return restPct < 100 ? 100 - restPct : null;
+  // Dock-Schaden je Typ (Formel 2026-09-23/24, 7/7 echte Kampfberichte exakt):
+  // Schaden eines Typs = floor -> versenkt, Rest liegt auf GENAU EINEM Schiff,
+  // Dock-% = round(Rest-Schaden / HP). Der kontinuierliche Pool in
+  // simulateCombatFull() liefert genau diesen Rest (Gewichtung bleibt die
+  // Start-Zusammensetzung). Zusatzregel: mind. 1 Schiff kommt heil zurueck
+  // (Beschaedigte <= Ueberlebende - 1; deckt den Einzelschiff-Fall mit ab).
+  // Verschont wird vorlaeufig der Typ mit dem geringsten absoluten Schaden
+  // (#2055: Schlachtschiff 950 vs. Fregatte 1'330) - Tiebreak unbelegt.
+  // Rueckgabe: Map name -> { pct, spared }.
+  function dockDamages(final) {
+    const hit = [];
+    let survivors = 0;
+    final.forEach((f) => {
+      if (f.after <= 0) return;
+      survivors += f.after;
+      const dmgHp = f.after * f.hp - f.curHpPool;
+      const pct = Math.round((dmgHp / f.hp) * 100 + 1e-9);
+      if (pct > 0) hit.push({ name: f.name, pct, dmgHp });
+    });
+    const res = new Map();
+    const excess = hit.length - Math.max(0, survivors - 1);
+    hit.sort((x, y) => x.dmgHp - y.dmgHp);
+    hit.forEach((h, i) => res.set(h.name, { pct: h.pct, spared: i < excess }));
+    return res;
   }
 
   // 2026-09-15: TOTALVERLUST-REGEL, live gegen /api/combat/simulate
@@ -1141,24 +1147,32 @@
     // Zusammenfassung (Nutzer-Feedback 2026-09-15: "sollte da doch die 4
     // stehen" - vorher stand in der Zeile immer "—", die Zahl nur darunter).
     const showSalvagedInRow = isWipeout && before.length === 1;
+    const dock = isAttacker && !isWipeout ? dockDamages(final) : new Map();
+    let anySpared = false;
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
       const after = f ? f.after : 0;
-      const dmgPct = isAttacker && !isWipeout ? dockDamagePercent(f, totalBeforeCount) : null;
+      const d = dock.get(u.name);
+      if (d && d.spared) anySpared = true;
+      const dmgPct = d && !d.spared ? d.pct : null;
       const dockCell = showSalvagedInRow ? salvaged + ' Schiffe'
-        : (dmgPct !== null ? '1x ' + dmgPct + '%' : '—');
+        : (dmgPct !== null ? '1x ' + dmgPct + '%' : (d ? '— (heil*)' : '—'));
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
         + '<td style="opacity:.75">' + (u.count - after) + '</td>'
         + '<td style="opacity:.75">' + dockCell + '</td></tr>';
       const buildCost = SHIP_BUILD_COST[u.name];
+      // Spiel rundet je Rohstoff und Schiff ab (DP2: Stein 2'491, nicht 2'492).
       if (dmgPct !== null && buildCost) {
-        repairTotal.wood += buildCost.wood * dmgPct / 100;
-        repairTotal.stone += buildCost.stone * dmgPct / 100;
-        repairTotal.iron += buildCost.iron * dmgPct / 100;
+        repairTotal.wood += Math.floor(buildCost.wood * dmgPct / 100);
+        repairTotal.stone += Math.floor(buildCost.stone * dmgPct / 100);
+        repairTotal.iron += Math.floor(buildCost.iron * dmgPct / 100);
       }
     });
     html += '</table>';
+    if (anySpared) {
+      html += '<div style="font-size:11px;opacity:.6;margin-top:2px">* mind. 1 Schiff kommt immer heil zurück - welcher Typ verschont wird, ist geschätzt (unsicher)</div>';
+    }
     if (isWipeout && !showSalvagedInRow && salvaged > 0) {
       html += '<div style="font-size:11px;opacity:.75;margin-top:4px">🔧 davon ca. <b>' + salvaged
         + '</b> von ' + totalBeforeCount + ' zerstörten Schiffen beschädigt statt versenkt (gehen ins Dock) - genaue Typ-Zuordnung bei mehreren Schiffstypen nicht möglich</div>';
@@ -1176,7 +1190,7 @@
       // trotz nowrap unter dem Icon).
       const cell = (src, val) => '<td style="white-space:nowrap;padding-right:10px">'
         + '<img src="' + src + '" width="14" height="14" style="display:inline-block;vertical-align:middle;margin-right:3px">'
-        + Math.round(val).toLocaleString() + '</td>';
+        + val.toLocaleString() + '</td>';
       html += '<table style="font-size:11px;opacity:.75;margin-top:4px;border-collapse:collapse">'
         + '<tr><td style="padding-right:8px">Reparaturkosten:</td>'
         + cell(ICON_WOOD, repairTotal.wood) + cell(ICON_STONE, repairTotal.stone) + cell(ICON_IRON, repairTotal.iron)
