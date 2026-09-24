@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.8.1
+// @version      1.8.2
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -1084,12 +1084,12 @@
     const hit = [];
     let survivors = 0;
     final.forEach((f) => {
-      if (f.after <= 0) return;
+      // Kolo nie im Dock und zählt nicht als "heil zurück": wird bei der Eroberung verbraucht (Nutzer 2026-09-24, DP8)
+      if (f.after <= 0 || f.name === 'Kolonisationsschiff') return;
       survivors += f.after;
       const dmgHp = f.after * f.hp - f.curHpPool;
       const pct = Math.round((dmgHp / f.hp) * 100 + 1e-9);
-      // Kolo nie im Dock: wird bei der Eroberung verbraucht (Nutzer 2026-09-24, DP8)
-      if (pct > 0 && f.name !== 'Kolonisationsschiff') hit.push({ name: f.name, pct, dmgHp });
+      if (pct > 0) hit.push({ name: f.name, pct, dmgHp });
     });
     const res = new Map();
     const excess = hit.length - Math.max(0, survivors - 1);
