@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.10.1
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten auf der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
+// @version      1.11.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -163,6 +163,7 @@
     tickMarketQuickAdd();
     tickHarborQuickFill();
     tickDashboardLevels();
+    tickDashboardResources();
     tickResourceStock();
     annotateReportAllianceTags();
   }
@@ -652,6 +653,32 @@
       return Array.from(document.querySelectorAll('ul'));
     }
     return SECTIONS.map(findSection).filter(Boolean).map((s) => s.ul);
+  }
+
+  // Dashboard-Kacheln: Rohstoffwerte live hochzaehlen (Feature 11, v1.11.0).
+  // Markup live verifiziert 2026-09-24: <span class="text-gray-600">
+  // <span class="group ...">[img alt=wood|stone|iron|coal]</span> 155'432</span>,
+  // die Zahl ist der letzte Textknoten. Vue setzt ihn beim eigenen Poll
+  // zurueck, der naechste 500ms-Tick ueberschreibt ihn wieder.
+  function tickDashboardResources() {
+    if (location.pathname !== '/') return;
+    const lis = document.querySelectorAll('ul.grid > li');
+    if (!lis.length) return;
+    fetchEmpireCached().then((empire) => {
+      if (!empire) return;
+      lis.forEach((li) => {
+        const link = li.querySelector('a[href^="/island/"]');
+        const island = link && empire.data.islands.find((i) => String(i.id) === link.getAttribute('href').split('/')[2]);
+        if (!island) return;
+        li.querySelectorAll('span.text-gray-600 > span.group > img').forEach((img) => {
+          const res = island.resources[img.alt];
+          if (res === undefined) return;
+          const grown = res + (island.productionPerHour[img.alt] || 0) * (Date.now() - empire.fetchedAt) / 3600000;
+          const textNode = img.parentElement.parentElement.lastChild;
+          if (textNode.nodeType === 3) textNode.textContent = ' ' + formatNum(Math.max(res, Math.min(island.capacity, grown)));
+        });
+      });
+    });
   }
 
   function tickResourceStock() {
