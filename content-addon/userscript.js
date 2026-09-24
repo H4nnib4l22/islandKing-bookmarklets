@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.11.0
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, Restzeit unter „wird ausgebaut”/„wird erforscht”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
+// @version      1.12.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -785,6 +785,58 @@
   }
 
   // -------------------------------------------------------------------
+  // Laufender Schiffsbau / laufende Ausbildung (Feature 12, v1.12.0) wie
+  // Ausbau/Forschung: Eingabe+Button und Kosten des laufenden Eintrags
+  // ausblenden, "🚢 wird gebaut"/"🪖 wird ausgebildet" + Restzeit zeigen.
+  // Quelle: /api/islands/<id>/overview shipQueue {shipName, count, finishAt}
+  // bzw. soldierQueue {soldierName, count, ...} (Felder live verifiziert
+  // 2026-09-24, soldierQueue aus dem BarracksView-Bundle). Pro Insel laeuft
+  // je Gebaeude nur ein Auftrag. Zuordnung ueber den Namen = erster
+  // Textknoten von <p class="font-semibold"> im <li>.
+  // -------------------------------------------------------------------
+  function tickRunningUnits() {
+    const isShipyard = location.pathname === '/shipyard';
+    if (!isShipyard && location.pathname !== '/barracks') return;
+    const ul = document.querySelector('main ul');
+    if (!ul) return;
+    fetchEmpireCached().then((empire) => {
+      const island = empire && findDisplayedIsland(empire.data.islands);
+      return island && fetchIslandOverview(island.id);
+    }).then((o) => {
+      if (!o) return;
+      const q = isShipyard ? o.shipQueue : o.soldierQueue;
+      const name = q && (isShipyard ? q.shipName : q.soldierName);
+      Array.from(ul.children).forEach((li) => {
+        const title = li.querySelector('p.font-semibold');
+        const running = name && title && title.firstChild && title.firstChild.textContent.trim() === name;
+        const marker = li.querySelector('[data-ikba-running]');
+        if (!running) {
+          if (marker) marker.remove();
+          const eta = li.querySelector('[data-ikba-eta]');
+          if (eta) eta.remove();
+          li.querySelectorAll('[data-ikba-hidden]').forEach((el) => { el.style.display = ''; delete el.dataset.ikbaHidden; });
+          return;
+        }
+        const input = li.querySelector('input[type="number"]');
+        if (!input) return;
+        const inputRow = input.parentElement;
+        [inputRow, findCostRow(li), li.querySelector('[data-ikba-quickadd]')].forEach((el) => {
+          if (el) { el.dataset.ikbaHidden = '1'; el.style.display = 'none'; }
+        });
+        let p = marker;
+        if (!p) {
+          p = document.createElement('p');
+          p.dataset.ikbaRunning = '1';
+          p.className = 'text-xs font-medium text-ocean-500';
+          inputRow.insertAdjacentElement('beforebegin', p);
+        }
+        p.textContent = (isShipyard ? '🚢 wird gebaut' : '🪖 wird ausgebildet') + (q.count > 1 ? ' (' + q.count + '×)' : '');
+        if (q.finishAt) ensureEta(p, q.finishAt);
+      });
+    });
+  }
+
+  // -------------------------------------------------------------------
   // Flotte & Truppen je Insel (Feature 10) — /empire zeigt bereits eine
   // Tabelle mit Insel/Rohstoffen/Gebaeuden/Schiffs- UND Soldaten-SUMME
   // je Insel (verifiziert live per Claude-in-Chrome), aber keine Aufschluesselung
@@ -906,5 +958,5 @@
   }
 
   tick();
-  setInterval(() => { tick(); tickRunningResearch(); tickRunningBuilds(); tickEmpireUnitBreakdown(); }, 500);
+  setInterval(() => { tick(); tickRunningResearch(); tickRunningBuilds(); tickRunningUnits(); tickEmpireUnitBreakdown(); }, 500);
 })();
