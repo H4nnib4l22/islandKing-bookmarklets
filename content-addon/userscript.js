@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.13.0
+// @version      1.13.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten samt Allianz-Filter (Posteingang und Archiv), live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
@@ -513,15 +513,19 @@
     return out;
   }
 
+  // anchorRow.parentElement ist die flex-wrap/justify-between-Zeile mit
+  // Posteingang/Archiv links und dem spieleigenen "Älter als N Tage"+
+  // "Aufräumen" rechts - der Filter kommt als eigene Zeile DARUNTER, sonst
+  // drückt er die Aufräumen-Gruppe in die zweite Zeile (v1.13.1).
   function ensureReportFilterBar(anchorRow) {
     let bar = document.getElementById('ikca-report-filter');
     if (bar && bar.previousElementSibling === anchorRow) return bar;
     if (bar) bar.remove();
     bar = document.createElement('div');
     bar.id = 'ikca-report-filter';
-    bar.style.cssText = 'display:flex;align-items:center;gap:6px;margin:8px 0;font-size:13px;color:#6b7280';
+    bar.style.cssText = 'display:flex;align-items:center;gap:6px;margin:12px 0 8px;font-size:13px;color:#6b7280';
     const select = document.createElement('select');
-    select.className = 'rounded border border-gray-300 px-2 py-1 text-sm';
+    select.className = 'rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700';
     select.addEventListener('change', () => { reportAllianceFilter = select.value; });
     const reset = document.createElement('button');
     reset.type = 'button';
@@ -538,7 +542,7 @@
     if (location.pathname !== '/spy-reports' && location.pathname !== '/battle-reports') return;
     const archiveBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.includes('Archiv'));
     if (!archiveBtn) return;
-    const select = ensureReportFilterBar(archiveBtn.parentElement).querySelector('select');
+    const select = ensureReportFilterBar(archiveBtn.parentElement.parentElement).querySelector('select');
 
     const tags = new Set();
     findReportEntries().forEach(({ li, names }) => {

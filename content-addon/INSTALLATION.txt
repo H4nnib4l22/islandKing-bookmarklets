@@ -31,7 +31,7 @@ Sammlung kleiner Komfort-Erweiterungen für islandking.ch:
   Leeren.
 
 - Allianz-Filter bei Berichten: Bei den Kampf- und Spionageberichten
-  (islandking.ch/battle-reports und /spy-reports) erscheint neben
+  (islandking.ch/battle-reports und /spy-reports) erscheint unter
   "Posteingang"/"Archiv" eine Auswahl "Allianz:", die nur noch Berichte
   mit Spielern der gewählten Allianz zeigt — im Posteingang wie im
   Archiv. Der ✕-Button daneben setzt auf "Alle Allianzen" zurück.
