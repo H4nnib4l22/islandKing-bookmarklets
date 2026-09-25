@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.31
+// @version      1.6.32
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar (Einklappen jetzt zuverlässig, alter CSS-Konflikt behoben), per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -394,7 +394,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.31';
+  const VERSION = 'v1.6.32';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -585,6 +585,10 @@
     tray.style.cssText = 'position:fixed;display:flex;align-items:center;gap:2px;z-index:1000001';
     document.body.appendChild(tray);
     window.addEventListener('resize', positionNavbarTray);
+    // Nach Reload ist die Menüleiste (SPA) beim Script-Start oft noch nicht
+    // gerendert -> Tray blieb unpositioniert unsichtbar, bis ein weiteres
+    // Panel minimiert wurde. Daher laufend nachziehen.
+    setInterval(positionNavbarTray, 500);
     return tray;
   }
   let navIcon = null;

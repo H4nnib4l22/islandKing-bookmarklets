@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Spy Report Lookup
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.2.2
+// @version      1.2.3
 // @description  Spionageberichte nach Benutzername durchsuchen + eigene Flotte auslesen, formatiert zum Kopieren — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Tabs bleiben beim Scrollen fixiert, ↻-Update-Check im Panel-Header, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -45,7 +45,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.2.2';
+  const VERSION = 'v1.2.3';
   const existing = document.getElementById('iksr-panel');
   if (existing) { existing.__iksrCleanup?.(); existing.remove(); return; }
 
@@ -491,6 +491,10 @@
     tray.style.cssText = 'position:fixed;display:flex;align-items:center;gap:2px;z-index:1000001';
     document.body.appendChild(tray);
     window.addEventListener('resize', positionNavbarTray);
+    // Nach Reload ist die Menüleiste (SPA) beim Script-Start oft noch nicht
+    // gerendert -> Tray blieb unpositioniert unsichtbar, bis ein weiteres
+    // Panel minimiert wurde. Daher laufend nachziehen.
+    setInterval(positionNavbarTray, 500);
     return tray;
   }
   let navIcon = null;

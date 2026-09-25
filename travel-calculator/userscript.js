@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.8.4
+// @version      1.8.5
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -405,6 +405,10 @@
       tray.style.cssText = 'position:fixed;display:flex;align-items:center;gap:2px;z-index:1000001';
       document.body.appendChild(tray);
       window.addEventListener('resize', positionNavbarTray);
+      // Nach Reload ist die Menüleiste (SPA) beim Script-Start oft noch nicht
+      // gerendert -> Tray blieb unpositioniert unsichtbar, bis ein weiteres
+      // Panel minimiert wurde. Daher laufend nachziehen.
+      setInterval(positionNavbarTray, 500);
       return tray;
     }
     let navIcon = null;

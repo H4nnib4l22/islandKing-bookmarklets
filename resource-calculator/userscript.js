@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Ressourcenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.5.1
+// @version      1.5.2
 // @description  Ansparzeit-/Baukosten-Rechner für Gebäude, Forschung und Schiffe — ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile bleibt beim Scrollen fixiert, 420px breit statt 380px, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -40,7 +40,7 @@
  * nicht reicht (Zeilen sind 100%-breit und wandern mit).
  */
 (function () {
-  const VERSION = 'v1.5.1';
+  const VERSION = 'v1.5.2';
   const existing = document.getElementById('ikrc-panel');
   if (existing) { existing.__ikrcCleanup?.(); existing.remove(); return; }
 
@@ -432,6 +432,10 @@
     tray.style.cssText = 'position:fixed;display:flex;align-items:center;gap:2px;z-index:1000001';
     document.body.appendChild(tray);
     window.addEventListener('resize', positionNavbarTray);
+    // Nach Reload ist die Menüleiste (SPA) beim Script-Start oft noch nicht
+    // gerendert -> Tray blieb unpositioniert unsichtbar, bis ein weiteres
+    // Panel minimiert wurde. Daher laufend nachziehen.
+    setInterval(positionNavbarTray, 500);
     return tray;
   }
   let navIcon = null;
