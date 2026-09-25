@@ -40,6 +40,8 @@ Bearer-Token, kein GitHub-Token, kein externes Datenrepo.
   automatisch auch für Truppen, die erst später freigeschaltet werden;
   auf der Handel-Seite dieselben Schnell-Buttons (+1000/+5000/+10000/
   +20000/+25000) je für "Biete" und "Suche" im Angebotsformular.
+  Bei Kampf-/Spionageberichten ein Allianz-Filter (Posteingang und
+  Archiv), per ✕ zurücksetzbar.
   Kein eigenes Panel, reine DOM-Filterung.
 - **Spy Report Lookup** (`spy-report-lookup/`) — Overlay-Panel, Portierung
   der gleichnamigen Browser-Extension. **Spionage**-Tab durchsucht

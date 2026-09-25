@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.12.0
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
+// @version      1.13.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten samt Allianz-Filter (Posteingang und Archiv), live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -166,6 +166,7 @@
     tickDashboardResources();
     tickResourceStock();
     annotateReportAllianceTags();
+    tickReportAllianceFilter();
   }
 
   // -------------------------------------------------------------------
@@ -477,6 +478,89 @@
   function annotateReportAllianceTags() {
     if (location.pathname === '/spy-reports') annotateSpyReportNames();
     else if (location.pathname === '/battle-reports') annotateBattleReportNames();
+  }
+
+  // -------------------------------------------------------------------
+  // Allianz-Filter bei Kampf-/Spionageberichten (Feature 13, v1.13.0).
+  // Posteingang und Archiv sind dieselbe Seite (Umschalt-Buttons
+  // "📥 Posteingang"/"🗄 Archiv"), die Liste wird nur neu gerendert - der
+  // Filter sitzt unter dieser Button-Zeile und wirkt daher in beiden
+  // Ansichten. Kuerzel werden je Bericht selbst ermittelt (nicht aus dem
+  // annotierten Text gelesen), weil evtl. der Reisezeitenrechner die
+  // Annotation uebernommen hat. Auswahl bleibt beim Wechsel Posteingang/
+  // Archiv erhalten, "✕" setzt auf "Alle Allianzen" zurueck.
+  // -------------------------------------------------------------------
+
+  const NO_ALLIANCE = '(ohne Allianz)';
+  let reportAllianceFilter = '';
+
+  function stripTag(name) {
+    return name.replace(/\s*\([^()]*\)$/, '').trim();
+  }
+
+  // [{li, names}] - gleiche Erkennung wie annotate*ReportNames() oben.
+  function findReportEntries() {
+    const spy = location.pathname === '/spy-reports';
+    const out = [];
+    document.querySelectorAll('li').forEach((li) => {
+      const el = Array.from(li.querySelectorAll(spy ? 'span' : 'p')).find((e) =>
+        e.childNodes[0] && e.childNodes[0].nodeType === 3 && e.childNodes[0].textContent.includes(spy ? '🔍' : '⚔️'));
+      if (!el) return;
+      const text = el.childNodes[0].textContent;
+      const m = spy ? text.match(/🔍\s*([^·]+?)\s*·/) : text.match(/^(.+?)\s*⚔️\s*(.+?)\s*·/);
+      if (m) out.push({ li, names: m.slice(1).map(stripTag) });
+    });
+    return out;
+  }
+
+  function ensureReportFilterBar(anchorRow) {
+    let bar = document.getElementById('ikca-report-filter');
+    if (bar && bar.previousElementSibling === anchorRow) return bar;
+    if (bar) bar.remove();
+    bar = document.createElement('div');
+    bar.id = 'ikca-report-filter';
+    bar.style.cssText = 'display:flex;align-items:center;gap:6px;margin:8px 0;font-size:13px;color:#6b7280';
+    const select = document.createElement('select');
+    select.className = 'rounded border border-gray-300 px-2 py-1 text-sm';
+    select.addEventListener('change', () => { reportAllianceFilter = select.value; });
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.textContent = '✕';
+    reset.title = 'Filter zurücksetzen';
+    reset.className = 'rounded px-2 py-1 text-sm bg-gray-100 text-gray-600 hover:bg-gray-200';
+    reset.addEventListener('click', () => { reportAllianceFilter = ''; select.value = ''; });
+    bar.append(document.createTextNode('Allianz:'), select, reset);
+    anchorRow.insertAdjacentElement('afterend', bar);
+    return bar;
+  }
+
+  function tickReportAllianceFilter() {
+    if (location.pathname !== '/spy-reports' && location.pathname !== '/battle-reports') return;
+    const archiveBtn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.includes('Archiv'));
+    if (!archiveBtn) return;
+    const select = ensureReportFilterBar(archiveBtn.parentElement).querySelector('select');
+
+    const tags = new Set();
+    findReportEntries().forEach(({ li, names }) => {
+      if (li.dataset.ikcaTags === undefined && !li.dataset.ikcaTagsPending) {
+        li.dataset.ikcaTagsPending = '1';
+        Promise.all(names.map(fetchAllianceTag)).then((t) => {
+          li.dataset.ikcaTags = t.map((x) => x || NO_ALLIANCE).join('|');
+        });
+      }
+      const liTags = li.dataset.ikcaTags === undefined ? null : li.dataset.ikcaTags.split('|');
+      if (liTags) liTags.forEach((t) => tags.add(t));
+      // Noch unaufgeloeste Berichte sichtbar lassen statt kurz zu flackern.
+      li.style.display = reportAllianceFilter && liTags && !liTags.includes(reportAllianceFilter) ? 'none' : '';
+    });
+
+    if (reportAllianceFilter) tags.add(reportAllianceFilter);
+    const wanted = [''].concat(Array.from(tags).sort((a, b) => a.localeCompare(b)));
+    const have = Array.from(select.options).map((o) => o.value);
+    if (wanted.join('\n') !== have.join('\n')) {
+      select.replaceChildren(...wanted.map((v) => new Option(v || 'Alle Allianzen', v)));
+    }
+    if (select.value !== reportAllianceFilter) select.value = reportAllianceFilter;
   }
 
   // -------------------------------------------------------------------

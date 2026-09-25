@@ -30,6 +30,12 @@ Sammlung kleiner Komfort-Erweiterungen für islandking.ch:
   ebenfalls kumulativ bei mehrfachem Klick, plus je ein ✕-Button zum
   Leeren.
 
+- Allianz-Filter bei Berichten: Bei den Kampf- und Spionageberichten
+  (islandking.ch/battle-reports und /spy-reports) erscheint neben
+  "Posteingang"/"Archiv" eine Auswahl "Allianz:", die nur noch Berichte
+  mit Spielern der gewählten Allianz zeigt — im Posteingang wie im
+  Archiv. Der ✕-Button daneben setzt auf "Alle Allianzen" zurück.
+
 Reine DOM-Filterung der bestehenden Seiten, keine API, kein Login-Token,
 kein eigenes Panel — nur Tampermonkey, kein Bookmarklet (die Seiten sind
 eine Single-Page-App, ein Bookmarklet müsste bei jedem Insel-/Seitenwechsel
