@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Allianz Status
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.6.30
+// @version      1.6.31
 // @description  Allianz-Overlay mit Online-Status, Favoriten, Verfolgt-Liste, laufenden Allianz-Angriffen und Spähposten-Meldungen — ein-/ausklappbar (Einklappen jetzt zuverlässig, alter CSS-Konflikt behoben), per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), feste Standardgröße, 420px breit, folgt automatisch dem Hell-/Dunkelmodus von islandking.ch, Benachrichtigungspunkt bei neuen Angriffen/Spähposten-Meldungen nur im eingeklappten Zustand im Titel, automatischer Reload bei abgelaufener Session bricht nach mehreren erfolglosen Versuchen ab statt endlos zu reloaden
 // @author       Oscar
 // @license      MIT
@@ -38,7 +38,10 @@
  *   Report "Daten unvollstaendig" - die urspruengliche Annahme aus der
  *   HAR-Capture war falsch, weil outgoing dort leer war): player,
  *   playerId, origin (Name der Herkunftsinsel), target:{x,y,islandName,
- *   owner}, shipCount, soldierCount, arriveAt, remainingSeconds.
+ *   owner}, shipCount, soldierCount, arriveAt, remainingSeconds (nur
+ *   outgoing!). incoming (live 2026-09-25): {player (angegriffenes
+ *   Mitglied), playerId, islandName, x, y, count (Flotten), arriveAt,
+ *   remainingSeconds}.
  *   Gleicher Endpoint wie im Attack-Notifier (background.js),
  *   dort aber nur die incoming-Haelfte fuer Notifications genutzt.
  *   v1.3.0: roter Punkt am Angriffe-Tab bei neu hinzugekommenen Flotten
@@ -391,7 +394,7 @@
   // gewuenscht ist die feste Standardgroesse (5 Favoriten + Mitglieder-
   // Zeile sichtbar, lange Listen scrollen intern wie zuvor).
   const BODY_HEIGHT = 300;
-  const VERSION = 'v1.6.30';
+  const VERSION = 'v1.6.31';
   const TITLE = '🤝 Allianz Status <span style="opacity:.5;font-weight:normal;font-size:11px">' + VERSION + '</span>';
 
   // ↻-Button im Panel-Header: prueft per GM_xmlhttpRequest (umgeht die
@@ -1022,14 +1025,23 @@
     box.className = incoming ? 'box incoming' : 'box outgoing';
     const info = document.createElement('div');
     info.className = 'info';
-    const t = f.target || {};
-    const coords = (t.x != null && t.y != null) ? ` (${t.x}|${t.y})` : '';
     const counts = [];
     if (f.shipCount != null) counts.push(`🚢 ${f.shipCount}`);
     if (f.soldierCount) counts.push(`⚔️ ${f.soldierCount}`);
     const metaParts = [];
-    if (f.origin) metaParts.push(f.origin);
-    metaParts.push(`→${coords} ${t.owner || t.islandName || '?'}`);
+    if (incoming) {
+      // incoming hat ein anderes Schema (live verifiziert 2026-09-25):
+      // {player (angegriffenes Allianzmitglied), playerId, islandName, x, y,
+      // count (Anzahl Flotten), arriveAt, remainingSeconds} - kein target.
+      const coords = (f.x != null && f.y != null) ? ` (${f.x}|${f.y})` : '';
+      metaParts.push(`🎯 ${f.islandName || '?'}${coords}`);
+      if (f.count != null) counts.push(`${f.count} ${f.count === 1 ? 'Flotte' : 'Flotten'}`);
+    } else {
+      const t = f.target || {};
+      const coords = (t.x != null && t.y != null) ? ` (${t.x}|${t.y})` : '';
+      if (f.origin) metaParts.push(f.origin);
+      metaParts.push(`→${coords} ${t.owner || t.islandName || '?'}`);
+    }
     if (counts.length) metaParts.push(counts.join(' · '));
     info.innerHTML = `<div class="name">${f.player || '?'}</div>`
       + `<div class="meta">${metaParts.join(' · ')}</div>`;
@@ -1055,7 +1067,7 @@
     const arr = loadJson(LS_KNOWN_FLEETS, null);
     return Array.isArray(arr) ? new Set(arr) : null;
   })();
-  function fleetKey(f) { return [f.player, f.target?.x, f.target?.y, f.arriveAt].join('|'); }
+  function fleetKey(f) { return [f.player, f.target?.x ?? f.x, f.target?.y ?? f.y, f.arriveAt].join('|'); }
 
   async function renderAttacks() {
     const body = document.getElementById('ikas-attacks');
