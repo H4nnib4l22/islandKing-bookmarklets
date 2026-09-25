@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.8.2
+// @version      1.8.3
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -701,6 +701,7 @@
     'kleines Frachtschiff': { wood: 6500, stone: 150, iron: 4100 },
     'grosses Frachtschiff': { wood: 24000, stone: 500, iron: 12000 },
     'Kolonisationsschiff': { wood: 30000, stone: 10000, iron: 15000 },
+    'altes Piratenschiff': { wood: 9000, stone: 300, iron: 5000 }, // Dock-Zeile 2026-09-25 (82 %: 7'380/245/4'100)
     // Erbeutete Piratenschiffe sind reparierbar - Kosten aus echten Dock-
     // Reparaturzeilen zurueckgerechnet (2026-09-24, 8 bzw. 2 Zeilen exakt).
     'Piratenschiff': { wood: 70000, stone: 500, iron: 17000 },
@@ -1165,9 +1166,9 @@
       const buildCost = SHIP_BUILD_COST[u.name];
       // Spiel rundet je Rohstoff und Schiff ab (DP2: Stein 2'491, nicht 2'492).
       if (dmgPct !== null && buildCost) {
-        repairTotal.wood += Math.floor(buildCost.wood * dmgPct / 100);
-        repairTotal.stone += Math.floor(buildCost.stone * dmgPct / 100);
-        repairTotal.iron += Math.floor(buildCost.iron * dmgPct / 100);
+        repairTotal.wood += Math.floor(buildCost.wood * (dmgPct / 100));
+        repairTotal.stone += Math.floor(buildCost.stone * (dmgPct / 100));
+        repairTotal.iron += Math.floor(buildCost.iron * (dmgPct / 100));
       }
     });
     html += '</table>';
