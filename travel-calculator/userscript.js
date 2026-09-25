@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.8.5
+// @version      1.8.6
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -1168,7 +1168,7 @@
         : (dmgPct !== null ? '1x ' + dmgPct + '%' : (d ? '— (heil*)' : '—'));
       html += '<tr><td>' + u.name + '</td><td>' + u.count + '</td>'
         + '<td style="color:' + (after > 0 ? '#4ade80' : '#f87171') + '">' + after + '</td>'
-        + '<td style="opacity:.75">' + (u.count - after) + '</td>'
+        + '<td style="' + (isAttacker && u.count > after ? 'color:#f87171' : 'opacity:.75') + '">' + (u.count - after) + '</td>'
         + '<td style="opacity:.75">' + dockCell + '</td></tr>';
       const buildCost = SHIP_BUILD_COST[u.name];
       // Spiel rundet je Rohstoff und Schiff ab (DP2: Stein 2'491, nicht 2'492).
