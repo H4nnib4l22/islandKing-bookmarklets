@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.8.3
+// @version      1.8.4
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP- und Konvoi-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -706,6 +706,7 @@
     // Reparaturzeilen zurueckgerechnet (2026-09-24, 8 bzw. 2 Zeilen exakt).
     'Piratenschiff': { wood: 70000, stone: 500, iron: 17000 },
     'grosses Piratenschiff': { wood: 80000, stone: 30000, iron: 50000 },
+    'mächtiges Piratenschiff': { wood: 200000, stone: 90000, iron: 80000 }, // Dock-Zeile 2026-09-25 (99 %: 198'000/89'100/79'200)
   };
   // Ressourcen-Icons statt Emoji fuer die Reparaturkosten-Anzeige - direkt
   // von islandking.ch selbst geladen (same-origin, /resources/<key>.webp,
@@ -1087,6 +1088,8 @@
     final.forEach((f) => {
       // Kolo nie im Dock und zählt nicht als "heil zurück": wird bei der Eroberung verbraucht (Nutzer 2026-09-24, DP8)
       if (f.after <= 0 || f.name === 'Kolonisationsschiff') return;
+      // Verteidigungsanlagen gehen nie ins Dock (Verteidigungsbericht 2026-09-25: Türme "–", nicht unter "Beschädigt")
+      if (BUILDINGS_COMBAT.some((b) => b.name === f.name)) return;
       survivors += f.after;
       const dmgHp = f.after * f.hp - f.curHpPool;
       const pct = Math.round((dmgHp / f.hp) * 100 + 1e-9);
@@ -1127,12 +1130,12 @@
   // Baukosten als Reparaturkosten an). Nur fuer Schiffstypen mit bekanntem
   // SHIP_BUILD_COST - Truppen/Gebaeude/Piratenschiffe haben keins.
   //
-  // Dock-Reparatur gibt es nur beim ANGREIFER, nicht beim Verteidiger
-  // (live gegenverglichen mit dem internen Kampfrechner 2026-09-15,
-  // Nutzer-Screenshot: "davon beschaedigt ins Dock" stand dort ausschliesslich
-  // in der Angreifer-Zeile, der Verteidiger hatte nur "Verluste" ohne
-  // Dock-Anteil - verlorene Verteidiger-Schiffe sind schlicht versenkt).
-  function resultTable(title, before, final, isAttacker) {
+  // Dock gibt es auch beim VERTEIDIGER (echter Verteidigungsbericht
+  // 2026-09-25: SS 23 %, altes Piratenschiff 21 %, maechtiges 99 % - gleiche
+  // Formel wie beim Angreifer, Tuerme nie im Dock). Die alte Annahme
+  // "nur Angreifer" (interner Kampfrechner 2026-09-15) ist damit widerlegt.
+  // Piraten-Konvoi: kein Dock (Gegner-NPC).
+  function resultTable(title, before, final, isAttacker, withDock) {
     let html = '<div style="font-size:12px;font-weight:bold;margin:8px 0 4px">' + title + totalStats(before) + '</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
       + '<tr style="opacity:.7"><td>Einheit</td><td>Vorher</td><td>Nachher</td><td>Verlust</td><td>Dock (Schaden)</td></tr>';
@@ -1149,7 +1152,7 @@
     // Zusammenfassung (Nutzer-Feedback 2026-09-15: "sollte da doch die 4
     // stehen" - vorher stand in der Zeile immer "—", die Zahl nur darunter).
     const showSalvagedInRow = isWipeout && before.length === 1;
-    const dock = isAttacker && !isWipeout ? dockDamages(final) : new Map();
+    const dock = (isAttacker || withDock) && !isWipeout ? dockDamages(final) : new Map();
     let anySpared = false;
     before.forEach((u) => {
       const f = final.find((x) => x.name === u.name);
@@ -1229,7 +1232,7 @@
     let html = '<div style="font-weight:bold;color:' + o.color + ';margin-bottom:4px">' + o.text + '</div>'
       + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
       + resultTable('Angreifer', attackerUnits, result.attFinal, true)
-      + resultTable('Verteidiger', defenderUnits, result.defFinal, false);
+      + resultTable('Verteidiger', defenderUnits, result.defFinal, false, true);
     box.innerHTML = html;
   }
 
