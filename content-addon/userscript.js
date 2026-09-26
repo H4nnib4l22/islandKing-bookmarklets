@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.13.1
+// @version      1.13.2
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten samt Allianz-Filter (Posteingang und Archiv), live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
@@ -668,11 +668,19 @@
     const allSpans = Array.from(costP.children).filter((c) => c.tagName === 'SPAN' && !c.dataset.ikbaStock);
     const originalSpans = allSpans.filter((c) => c.querySelector('img'));
     if (!originalSpans.length) return;
-    if (costP.dataset.ikbaGrid !== '1') {
-      costP.dataset.ikbaGrid = '1';
-      Array.from(costP.childNodes).forEach((n) => { if (n.nodeType === 3) costP.removeChild(n); });
+    // Bei JEDEM Tick neu setzen statt einmalig: nach Bauende rendert Vue die
+    // Kostenzeile neu (Trenn-Textknoten zurueck, "⏳ reicht in"-Span kommt
+    // dazu/faellt weg) - eine einmal fixierte Spaltenzahl + Auto-Placement
+    // warf dann Kosten, Bestand und "reicht in" durcheinander (Nutzer-
+    // Screenshot 2026-09-26). Daher explizite Platzierung: Kosten Reihe 1,
+    // Bestand Reihe 2 (je gleiche Spalte), alles ohne Icon Reihe 3 ueber
+    // die volle Breite.
+    Array.from(costP.childNodes).forEach((n) => { if (n.nodeType === 3) costP.removeChild(n); });
+    costP.style.gridTemplateColumns = 'repeat(' + originalSpans.length + ', max-content)';
+    originalSpans.forEach((span, i) => { span.style.gridRow = '1'; span.style.gridColumn = String(i + 1); });
+    allSpans.filter((c) => !c.querySelector('img')).forEach((span) => { span.style.gridRow = '3'; span.style.gridColumn = '1 / -1'; });
+    {
       costP.style.display = 'grid';
-      costP.style.gridTemplateColumns = 'repeat(' + allSpans.length + ', max-content)';
       // Nutzerwunsch: mehr Luft zwischen Kosten- und Bestandszeile sowie
       // zwischen den Spalten, sonst wirken die (oft laengeren) Bestands-
       // zahlen bei knapper Spaltenbreite zu dicht gedraengt.
@@ -726,6 +734,8 @@
         haveSpan.appendChild(document.createTextNode(''));
         costP.appendChild(haveSpan);
       }
+      haveSpan.style.gridRow = '2';
+      haveSpan.style.gridColumn = String(i + 1);
       haveSpan.style.color = have === null ? '' : (have < needed ? '#f87171' : '#4ade80');
       haveSpan.lastChild.textContent = ' ' + (have === null ? '?' : formatNum(have));
     });
