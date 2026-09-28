@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.14.0
+// @version      1.14.1
 // @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten samt Allianz-Filter (Posteingang und Archiv), Allianz-Filter im Handel neben „Bietet”/„Sucht”, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
@@ -602,6 +602,7 @@
     }
 
     const tags = new Set();
+    let visible = 0;
     document.querySelectorAll('table tbody tr').forEach((tr) => {
       const cell = tr.querySelector('td');
       if (!cell) return;
@@ -609,8 +610,20 @@
       const m = span && span.textContent.trim().match(/^\[(.*)\]$/);
       const tag = m ? m[1] : NO_ALLIANCE;
       tags.add(tag);
-      tr.style.display = marketAllianceFilter && tag !== marketAllianceFilter ? 'none' : '';
+      const hide = marketAllianceFilter && tag !== marketAllianceFilter;
+      tr.style.display = hide ? 'none' : '';
+      if (!hide) visible++;
     });
+
+    // "N von M Angeboten" zaehlt nur den nativen Filter - N auf die wirklich
+    // sichtbaren Zeilen setzen. nodeValue statt textContent, damit Vue
+    // seinen Textknoten behaelt und M bei neuen Angeboten weiter pflegt.
+    const count = Array.from(bar.querySelectorAll('span')).find((s) => /\d+\s+von\s+\d/.test(s.textContent));
+    const node = count && count.firstChild;
+    if (node && node.nodeType === 3) {
+      const text = node.nodeValue.replace(/^\s*[\d'’]+(?=\s+von)/, String(visible));
+      if (text !== node.nodeValue) node.nodeValue = text;
+    }
 
     if (marketAllianceFilter) tags.add(marketAllianceFilter);
     const wanted = [''].concat(Array.from(tags).sort((a, b) => a.localeCompare(b)));
