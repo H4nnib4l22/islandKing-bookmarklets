@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Islandking Content Addon
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.13.2
-// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten samt Allianz-Filter (Posteingang und Archiv), live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
+// @version      1.14.0
+// @description  Sammlung kleiner Komfort-Erweiterungen für islandking.ch: Max-Stufe ausblenden (Gebäude/Forschung), Schnell-Buttons in der Kaserne (+5/+10/+20/+50/+100), im Handel (+1000/+5000/+10000/+20000/+25000), im Hafen (Rohstoffe gleichmäßig auf die Laderaumkapazität verteilen), Stufenanzeige (aktuell → Ziel) bei laufenden Bauten und live hochzählende Rohstoffe in den Insel-Kacheln der Übersichtsseite, Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten samt Allianz-Filter (Posteingang und Archiv), Allianz-Filter im Handel neben „Bietet”/„Sucht”, live hochzählender aktueller Rohstoffbestand unter den Bau-/Forschungs-/Ausbildungs-/Schiffsbaukosten, „wird gebaut”/„wird ausgebildet” in Werft und Kaserne, Restzeit unter „wird ausgebaut”/„wird erforscht”/„wird gebaut”/„wird ausgebildet”, und je eine Schiffe- und Soldaten-Tabelle je Insel auf der Reichsübersicht.
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -167,6 +167,7 @@
     tickResourceStock();
     annotateReportAllianceTags();
     tickReportAllianceFilter();
+    tickMarketAllianceFilter();
   }
 
   // -------------------------------------------------------------------
@@ -565,6 +566,59 @@
       select.replaceChildren(...wanted.map((v) => new Option(v || 'Alle Allianzen', v)));
     }
     if (select.value !== reportAllianceFilter) select.value = reportAllianceFilter;
+  }
+
+  // -------------------------------------------------------------------
+  // Allianz-Filter im Handel (Feature 14, v1.14.0). Die Offene-Angebote-
+  // Tabelle zeigt das Kuerzel bereits nativ als <span class="rounded
+  // bg-gray-100 ..."> "[FR]" in der Verkaeufer-Zelle (live verifiziert),
+  // daher keine API noetig. Das <select> sitzt hinter "Sucht". Vue
+  // recycelt <tr> beim nativen Filtern, deshalb wird die Sichtbarkeit
+  // jeden Tick aus dem aktuellen Zeileninhalt neu gesetzt.
+  // -------------------------------------------------------------------
+
+  let marketAllianceFilter = '';
+
+  function tickMarketAllianceFilter() {
+    if (location.pathname !== '/market') return;
+    const bar = Array.from(document.querySelectorAll('div.flex-wrap')).find((d) =>
+      d.querySelectorAll('select').length >= 2 && d.textContent.includes('Bietet'));
+    if (!bar) return;
+    let select = document.getElementById('ikca-market-alliance');
+    if (!select || select.parentElement !== bar) {
+      if (select) select.remove();
+      select = document.createElement('select');
+      select.id = 'ikca-market-alliance';
+      select.className = 'rounded border border-gray-300 px-2 py-1';
+      select.title = 'Nach Allianz des Verkäufers filtern';
+      select.addEventListener('change', () => { marketAllianceFilter = select.value; });
+      const label = document.createElement('label');
+      label.className = 'text-gray-600';
+      label.textContent = 'Allianz';
+      label.htmlFor = select.id;
+      const last = bar.querySelectorAll('select')[1];
+      last.insertAdjacentElement('afterend', select);
+      select.insertAdjacentElement('beforebegin', label);
+    }
+
+    const tags = new Set();
+    document.querySelectorAll('table tbody tr').forEach((tr) => {
+      const cell = tr.querySelector('td');
+      if (!cell) return;
+      const span = cell.querySelector('span.bg-gray-100');
+      const m = span && span.textContent.trim().match(/^\[(.*)\]$/);
+      const tag = m ? m[1] : NO_ALLIANCE;
+      tags.add(tag);
+      tr.style.display = marketAllianceFilter && tag !== marketAllianceFilter ? 'none' : '';
+    });
+
+    if (marketAllianceFilter) tags.add(marketAllianceFilter);
+    const wanted = [''].concat(Array.from(tags).sort((a, b) => a.localeCompare(b)));
+    const have = Array.from(select.options).map((o) => o.value);
+    if (wanted.join('|') !== have.join('|')) {
+      select.replaceChildren(...wanted.map((v) => new Option(v || 'alle', v)));
+    }
+    if (select.value !== marketAllianceFilter) select.value = marketAllianceFilter;
   }
 
   // -------------------------------------------------------------------
