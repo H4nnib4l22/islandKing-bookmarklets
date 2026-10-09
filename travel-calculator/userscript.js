@@ -903,10 +903,20 @@
       + '</span></div>';
   }
 
-  const boardBodyHtml = '<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Eine Salve, dann Enterkampf der Soldaten gegen die Besatzung. Gekapert wird die Hälfte der Hafenschiffe, die die Salve überleben — wer alles versenkt, kapert nichts. Faustregel: nur knapp überlegen (≈ 1,0–1,2× der Verteidigung). Voraussetzung: Kampfschiff-Forschung ≥ 10.</p>'
+  // See-Anlagen fuer "Flotte entern" (⚓ im Bau-Menue, Nutzer-Screenshot
+  // 2026-10-09; Anzahl statt Stufe). Katapult = nur ⚔️ Landung, fehlt daher.
+  const SEA_INSTALLATIONS = [
+    { name: 'Wachturm', attack: 30, hp: 150 },
+    { name: 'Küstenkanone', attack: 800, hp: 1200 },
+    { name: 'Kanonenturm', attack: 1600, hp: 4500 },
+  ];
+
+  const boardBodyHtml ='<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Eine Salve, dann Enterkampf der Soldaten gegen die Besatzung. Gekapert wird die Hälfte der Hafenschiffe, die die Salve überleben — wer alles versenkt, kapert nichts. Faustregel: nur knapp überlegen (≈ 1,0–1,2× der Verteidigung). Voraussetzung: Kampfschiff-Forschung ≥ 10.</p>'
     + unitSection('batt', 'Angreifer', '#a78bfa', true)
     + researchRow('batt')
     + unitSection('bdef', 'Hafen (Schiffe + Besatzung)', 'var(--ikbm-gold)', false)
+    + '<div style="font-size:11px;opacity:.6;margin:4px 0">See-Anlagen (⚓, Anzahl)</div>'
+    + SEA_INSTALLATIONS.map((u) => unitRow('bdef', u, null, false)).join('')
     + researchRow('bdef')
     + '<button id="ikcc-board-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
     + '<div id="ikcc-board-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Flotten eingeben und auf "Entern" klicken.</p></div>';
@@ -1299,27 +1309,36 @@
   //    Besatzung, gleiche Formel wie die Landschlacht, Quote 60 %.
   // 4. Gekapert = Haelfte (aufgerundet) der Ueberlebenden, wertvollste
   //    (Angriff+TP) zuerst, je Prise max(Truppenplaetze, 5) Soldaten Prisenbesatzung.
-  // ponytail: See-Anlagen fehlen (welche Anlagen in der Salve mitkaempfen, ist
-  // unbelegt) - nachruesten, sobald ein Enter-Bericht mit Anlagen vorliegt.
+  // See-Anlagen (⚓ im Bau-Menue, Nutzer-Screenshot 2026-10-09): feuern in der
+  // Salve mit und schlucken anteilig Schaden, werden aber nie gekapert.
+  // Katapult (nur ⚔️ Landung) kaempft beim Entern nicht. Befestigungsforschung
+  // (+TP auf Anlagen) fehlt noch.
   // Truppenplaetze = SCHAETZWERTE aus dem Paket (Romans Flotte ergab 520 Plaetze).
   const SHIP_TROOP_CAPACITY = { 'kleines Frachtschiff': 40, 'grosses Frachtschiff': 200, 'altes Piratenschiff': 1, 'Piratenschiff': 10, 'Fregatte': 100, 'Schlachtschiff': 50, 'mächtiges Piratenschiff': 20 };
 
-  function simulateBoarding(attShips, attTroops, defShips, defTroops, qA, qD, qS) {
+  function simulateBoarding(attShips, attTroops, defShips, defTroops, qA, qD, qS, defInst = []) {
     const scale = (units, q) => units.map((u) => Object.assign({}, u, { attack: u.attack * q / 100 }));
-    const salvo = simulateCombatFull(scale(attShips, qA), scale(defShips, qD), 1);
+    const salvo = simulateCombatFull(scale(attShips, qA), scale(defShips.concat(defInst), qD), 1);
     const res = { salvo, captured: [], cap: 0, troops: [], board: null, crewShort: false };
     const hp0 = attShips.reduce((s, u) => s + u.count * u.hp, 0);
     const hp1 = salvo.attFinal.reduce((s, u) => s + u.curHpPool, 0);
     if (hp0 - hp1 >= 0.9 * hp0 - 1e-6) return Object.assign(res, { outcome: 'retreat' });
-    const alive = salvo.defFinal.filter((u) => u.after > 0);
+    const alive = salvo.defFinal.filter((u) => u.after > 0 && defShips.some((d) => d.name === u.name));
     if (!alive.length) return Object.assign(res, { outcome: 'noPrize' });
-    // Nur so viele Soldaten wie Truppenplaetze an Bord - Ueberzaehlige anteilig gestrichen (welche, ist unbelegt).
-    res.cap = attShips.reduce((s, u) => s + (SHIP_TROOP_CAPACITY[u.name] || 0) * u.count, 0);
-    const total = attTroops.reduce((s, u) => s + u.count, 0);
-    const f = total > res.cap ? res.cap / total : 1;
-    res.troops = attTroops.map((u) => Object.assign({}, u, { count: Math.floor(u.count * f) })).filter((u) => u.count > 0);
+    // Nur so viele Soldaten wie Truppenplaetze an Bord - beim Angreifer UND als
+    // Besatzung des Verteidigers ("so weit sie auf seine Hafenschiffe passen",
+    // IK-Hilfetext 2026-10-09; ob alle oder nur die ueberlebenden Hafenschiffe
+    // zaehlen, ist offen - hier alle). Ueberzaehlige anteilig gestrichen.
+    const fit = (ships, troops) => {
+      const cap = ships.reduce((s, u) => s + (SHIP_TROOP_CAPACITY[u.name] || 0) * u.count, 0);
+      const total = troops.reduce((s, u) => s + u.count, 0);
+      const f = total > cap ? cap / total : 1;
+      return { cap, troops: troops.map((u) => Object.assign({}, u, { count: Math.floor(u.count * f) })).filter((u) => u.count > 0) };
+    };
+    ({ cap: res.cap, troops: res.troops } = fit(attShips, attTroops));
     if (!res.troops.length) return Object.assign(res, { outcome: 'noSoldiers' });
-    res.board = defTroops.length ? simulateCombatFull(scale(res.troops, qS), scale(defTroops, qS))
+    res.crew = fit(defShips, defTroops).troops;
+    res.board = res.crew.length ? simulateCombatFull(scale(res.troops, qS), scale(res.crew, qS))
       : { attFinal: res.troops.map((u) => Object.assign({}, u, { after: u.count })), defFinal: [] };
     let crew = res.board.attFinal.reduce((s, u) => s + u.after, 0);
     if (!crew || res.board.defFinal.some((u) => u.after > 0)) return Object.assign(res, { outcome: 'held' });
@@ -1349,6 +1368,7 @@
     const attTroops = collectUnits('batt', TROOPS_COMBAT);
     const defShips = collectUnits('bdef', SHIPS_COMBAT);
     const defTroops = collectUnits('bdef', TROOPS_COMBAT);
+    const defInst = collectUnits('bdef', SEA_INSTALLATIONS);
     const box = document.getElementById('ikcc-board-result');
     const msg = (t) => { box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">' + t + '</p>'; };
     if (!attShips.length) return msg('Angreifer braucht mindestens ein Schiff.');
@@ -1358,13 +1378,14 @@
     const quote = (p, d) => Math.max(0, Math.min(100, 60 + lv(p, 'stdatt') + 2 * lv(p, 'adatt') + 5 * lv(p, 'royatt') + d));
     // Varianz ±10 % auf beide Seiten gleichzeitig (wie engine.js best/worst).
     const cases = [-10, 0, 10].map((d) => ({ d, qA: quote('batt', d), qD: quote('bdef', d),
-      r: simulateBoarding(attShips, attTroops, defShips, defTroops, quote('batt', d), quote('bdef', d), 60 + d) }));
+      r: simulateBoarding(attShips, attTroops, defShips, defTroops, quote('batt', d), quote('bdef', d), 60 + d, defInst) }));
     const exp = cases[1].r;
 
     const sum = (units, k) => units.reduce((s, u) => s + u.count * u[k], 0);
-    const attAtk = sum(attShips, 'attack'), defAtk = sum(defShips, 'attack');
-    const defPool = sum(defShips, 'hp');
-    // Proportionale Verteilung: alle Hafenschiffe sinken genau dann, wenn die Salve >= Hafen-TP ist.
+    const defSea = defShips.concat(defInst);
+    const attAtk = sum(attShips, 'attack'), defAtk = sum(defSea, 'attack');
+    const defPool = sum(defSea, 'hp');
+    // Proportionale Verteilung: alle Hafenschiffe sinken genau dann, wenn die Salve >= Hafen-TP (inkl. See-Anlagen) ist.
     const maxAtk = Math.ceil(defPool * 100 / cases[2].qA) - 1;
     const minHp = Math.floor(defAtk * cases[2].qD / 100 / 0.9) + 1;
     const fmt = (n) => Math.round(n).toLocaleString();
@@ -1382,16 +1403,16 @@
       + '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">'
       + '<tr style="opacity:.7"><td>Trefferquote</td><td>Hafen übrig</td><td>Gekapert</td><td>Ergebnis</td></tr>'
       + cases.map((c) => '<tr><td>' + c.qA + ' / ' + c.qD + ' %</td>'
-        + '<td>' + c.r.salvo.defFinal.reduce((s, u) => s + u.after, 0) + '</td>'
+        + '<td>' + c.r.salvo.defFinal.reduce((s, u) => s + (defShips.some((d) => d.name === u.name) ? u.after : 0), 0) + '</td>'
         + '<td>' + c.r.captured.reduce((s, x) => s + x.count, 0) + '</td>'
         + '<td style="color:' + BOARD_OUTCOME[c.r.outcome][1] + '">' + BOARD_OUTCOME[c.r.outcome][0].split(' ')[0] + '</td></tr>').join('')
       + '</table>'
       + '<div style="font-size:11px;opacity:.6;margin:6px 0 2px">Details bei erwarteter Quote (' + cases[1].qA + ' / ' + cases[1].qD + ' %):</div>'
       + resultTable('Angreifer (Salve)', attShips, exp.salvo.attFinal, true)
-      + resultTable('Hafenschiffe (Salve)', defShips, exp.salvo.defFinal, false);
+      + resultTable('Hafen (Salve)', defSea, exp.salvo.defFinal, false);
     if (exp.board) {
-      html += resultTable('Enterkampf: Soldaten', exp.troops, exp.board.attFinal, false)
-        + (defTroops.length ? resultTable('Besatzung', defTroops, exp.board.defFinal, false) : '');
+      html += resultTable('Enterkampf: Soldaten an Bord', exp.troops, exp.board.attFinal, false)
+        + (exp.crew.length ? resultTable('Besatzung (passt auf Hafenschiffe)', exp.crew, exp.board.defFinal, false) : '');
     }
     box.innerHTML = html;
   }
