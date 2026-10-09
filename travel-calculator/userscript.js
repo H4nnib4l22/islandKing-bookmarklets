@@ -2,7 +2,7 @@
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
 // @version      1.9.0
-// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner mit PvP-, Konvoi-entern- und Flotte-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
+// @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Kampfkonzept 2.0: Seeschlacht + Landung, Trefferquote, Anlagen, Befestigung) mit PvP-, Konvoi-entern- und Flotte-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
 // @match        https://islandking.ch/*
@@ -728,34 +728,47 @@
     { name: 'Soldat', attack: 3, hp: 2 },
     { name: 'Schwertkämpfer', attack: 3, hp: 5 },
     { name: 'Musketier', attack: 14, hp: 6 },
-    { name: 'Kanonier', attack: 40, hp: 10 },
+    { name: 'Kanonier', attack: 40, hp: 1 }, // 10 -> 1 mit Kampfkonzept 2.0 (/api/combat/catalog 2026-10-09)
     { name: 'Ritter', attack: 12, hp: 21 },
   ];
-  // Verteidigungsanlagen: nur beim Verteidiger, level-skaliert (Lv 1-50), ausser
-  // den beiden festen Anlagen ohne Level (Kanonen zur Stadtmauer/Stadtmauer selbst).
-  const BUILDINGS_COMBAT = [
-    { name: 'Kanonen zur Stadtmauer', fixed: { attack: 20000, hp: 1 } },
-    { name: 'Stadtmauer', fixed: { attack: 0, hp: 30000 } },
-    { name: 'Leichter Turm', perLv: { attack: 30, hp: 100 } },
-    { name: 'Schwerer Turm', perLv: { attack: 180, hp: 700 } },
-    { name: 'Kanonenturm', perLv: { attack: 1600, hp: 3000 } },
-    { name: 'Wasserblockade', perLv: { attack: 0, hp: 5000 } },
+  // Kampfkonzept 2.0 (live seit 2026-10-09, /api/combat/catalog): Tuerme sind
+  // Anlagen nach ANZAHL statt Stufe. phase: sea = nur Seeschlacht (⚓), land =
+  // nur Landung (⚔️), both = beide Phasen (Restschaden aus der See bleibt).
+  // Befestigungs-% erhoeht ihre TP (gerundet, Kampfbericht 2026-10-06: Küstenkanone 1'320 bei +10 %).
+  const INSTALLATIONS_COMBAT = [
+    { name: 'Wachturm', attack: 30, hp: 150, phase: 'both' },
+    { name: 'Katapult', attack: 250, hp: 600, phase: 'land' },
+    { name: 'Küstenkanone', attack: 800, hp: 1200, phase: 'sea' },
+    { name: 'Kanonenturm', attack: 1600, hp: 4500, phase: 'both' },
+    { name: 'Wasserblockade', attack: 200, hp: 6000, phase: 'sea' },
+    { name: 'Stadtmauer', attack: 0, hp: 30000, phase: 'land' },
+    { name: 'Kanonen zur Stadtmauer', attack: 20000, hp: 100, phase: 'land' },
   ];
 
   // 1:1 aus index.php: kontinuierlicher HP-Pool pro Einheitentyp statt diskreter
   // Rundenverluste. Schaden wird proportional zum verbleibenden Pool-Anteil verteilt,
   // curCount = ceil(pool/hp) haelt angeschlagene Einheiten voll angriffsstark im Kampf.
-  function simulateCombatFull(attackerUnits, defenderUnits, maxRounds) {
+  // Kampfkonzept 2.0 (2026-10-09, 46/46 Faelle gegen /api/combat/simulate exakt):
+  // opts.qa/qd = Trefferquote in % (Schaden je Runde = round(Angriff x Quote)),
+  // opts.retreat = Abbruch, sobald die Angreiferseite in dieser Phase >= 90 %
+  // ihrer Start-TP verloren hat. Ohne opts = alte Formel (Backtest DP1-DP13).
+  // Einheiten mit curHpPool starten mit diesem Restpool (Schaden aus der Seeschlacht).
+  function simulateCombatFull(attackerUnits, defenderUnits, maxRounds, opts) {
     if (maxRounds === undefined) maxRounds = 6;
-    let att = attackerUnits.map((u) => Object.assign({}, u, { curHpPool: u.count * u.hp }));
-    let def = defenderUnits.map((u) => Object.assign({}, u, { curHpPool: u.count * u.hp }));
+    const qa = opts && opts.qa !== undefined ? opts.qa : 100;
+    const qd = opts && opts.qd !== undefined ? opts.qd : 100;
+    const pool0 = (u) => (u.curHpPool !== undefined ? u.curHpPool : u.count * u.hp);
+    let att = attackerUnits.map((u) => Object.assign({}, u, { curHpPool: pool0(u) }));
+    let def = defenderUnits.map((u) => Object.assign({}, u, { curHpPool: pool0(u) }));
+    const attHpStart = att.reduce((s, u) => s + u.curHpPool, 0);
     let round = 1;
     let rounds = 0;
+    let retreated = false;
 
     while (round <= maxRounds) {
-      const totalAtk_A = att.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp - 1e-9) * u.attack : 0), 0);
+      const totalAtk_A = Math.round(att.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp - 1e-9) * u.attack : 0), 0) * qa / 100);
       const totalHp_A = att.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
-      const totalAtk_D = def.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp - 1e-9) * u.attack : 0), 0);
+      const totalAtk_D = Math.round(def.reduce((s, u) => s + (u.curHpPool > 0 ? Math.ceil(u.curHpPool / u.hp - 1e-9) * u.attack : 0), 0) * qd / 100);
       const totalHp_D = def.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
 
       if (totalHp_A <= 0 || totalHp_D <= 0) break;
@@ -779,6 +792,7 @@
       const remHp_A = att.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
       const remHp_D = def.reduce((s, u) => s + Math.max(0, u.curHpPool), 0);
       if (remHp_D <= 0 || remHp_A <= 0) break;
+      if (opts && opts.retreat && attHpStart - remHp_A >= 0.9 * attHpStart) { retreated = true; break; }
       round++;
     }
 
@@ -786,7 +800,7 @@
     const attFinal = toFinal(att);
     const defFinal = toFinal(def);
     const defDestroyed = defFinal.every((u) => u.after === 0) && attFinal.some((u) => u.after > 0);
-    return { attFinal, defFinal, rounds, defDestroyed };
+    return { attFinal, defFinal, rounds, defDestroyed, retreated };
   }
 
   // clearable: kleines "✕" rechts neben dem Feld zum Leeren dieser einen
@@ -832,18 +846,20 @@
       + '</div>';
   }
 
-  function buildingRow(b) {
-    if (b.fixed) {
-      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
-        + '<span style="' + ROW_NAME_STYLE + '" title="' + b.name + '">' + b.name + '</span>'
-        + '<input type="checkbox" data-ikcc-bldg-fixed="' + b.name + '" style="flex:none">'
-        + '</div>';
-    }
+  // Prozentfeld (Trefferquote/Befestigung) - wie im Spiel-Kampfrechner direkt
+  // in %: Trefferquote = 60 + Standard Angriff x1 + Fortgeschrittener x2 + Royal x5.
+  function pctRow(prefix, key, label, value, title) {
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
-      + '<span style="' + ROW_NAME_STYLE + '" title="' + b.name + ' (Lv)">' + b.name + ' (Lv)</span>'
-      + '<input type="number" min="0" max="50" value="0" data-ikcc-bldg-lv="' + b.name + '" style="width:70px;flex:none;box-sizing:border-box;' + FIELD_STYLE + '">'
-      + '</div>';
+      + '<span style="' + ROW_NAME_STYLE + '" title="' + title + '">' + label + '</span>'
+      + '<span style="' + ROW_CONTROLS_STYLE + '">'
+      + '<input type="number" min="0" max="100" value="' + value + '" data-ikcc-pct="' + prefix + ':' + key + '" style="width:70px;box-sizing:border-box;' + FIELD_STYLE + '">'
+      + '<span style="visibility:hidden;font-size:12px">✕</span></span></div>';
   }
+  const quoteRow = (prefix) => pctRow(prefix, 'hit', '🎯 Trefferquote %', 60, '60 % Basis + Standard Angriff 1 % + Fortgeschrittener Angriff 2 % + Royal Angriff 5 % je Stufe');
+  const fortifyRow = (prefix) => pctRow(prefix, 'fort', '🧱 Befestigung %', 0, 'TP-Bonus auf Anlagen und Stadtmauer: Standard Verteidigung 1 %, Fortgeschrittene 2 %, Royal 5 % je Stufe');
+  const PHASE_ICON = { sea: ' ⚓', land: ' ⚔️', both: ' ⚓⚔️' };
+  const installationRows = (prefix, list) => '<div style="font-size:11px;opacity:.6;margin:4px 0">Anlagen (Anzahl)</div>'
+    + list.map((u) => unitRow(prefix, u, PHASE_ICON[u.phase], false)).join('');
 
   // Angreifer/Verteidiger UNTEREINANDER statt nebeneinander — bei der
   // einheitlichen Panel-Breite (siehe unten) wuerden zwei Spalten mit
@@ -880,10 +896,13 @@
     + 'border:none;cursor:pointer;background:#1f6feb;color:#fff">🚢 Eigene Flotte laden</button>'
     + '</span>';
 
-  const pvpBodyHtml = unitSection('att', 'Angreifer', '#a78bfa', true, ownFleetBtnHtml)
+  const pvpBodyHtml = '<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Zwei Phasen: Erst Schiffe gegen Hafenschiffe und ⚓-Anlagen. Ist die See frei, landen die Truppen und kämpfen gegen Soldaten, ⚔️-Anlagen und Stadtmauer; die Schiffe bombardieren mit 75 % und werden mitgetroffen. Eine überlebende Wasserblockade sperrt die Landung.</p>'
+    + unitSection('att', 'Angreifer', '#a78bfa', true, ownFleetBtnHtml)
+    + quoteRow('att')
     + unitSection('def', 'Verteidiger', 'var(--ikbm-gold)', false)
-    + '<div style="font-size:11px;opacity:.6;margin:4px 0">Verteidigungsanlagen</div>'
-    + BUILDINGS_COMBAT.map(buildingRow).join('')
+    + installationRows('def', INSTALLATIONS_COMBAT)
+    + quoteRow('def')
+    + fortifyRow('def')
     + '<button id="ikcc-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Kämpfen</button>'
     + '<div id="ikcc-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Einheiten eingeben und auf "Kämpfen" klicken.</p></div>';
 
@@ -893,31 +912,16 @@
     + '<button id="ikcc-convoy-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
     + '<div id="ikcc-convoy-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Schiffe eingeben und auf "Entern" klicken.</p></div>';
 
-  // Flotte entern: Angriffsforschung je Seite (+1/+2/+5 % Trefferquote je
-  // Stufe, /api/game-rules laut Enter-Rechner-Paket 2026-10-09).
-  function researchRow(prefix) {
-    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:2px 0">'
-      + '<span style="' + ROW_NAME_STYLE + '" title="Angriffsforschung-Stufen: Standard +1 %, Fortgeschritten +2 %, Königlich +5 % Trefferquote je Stufe">Angriffsforschung (Std/Fort/Kgl)</span>'
-      + '<span style="' + ROW_CONTROLS_STYLE + '">'
-      + ['stdatt', 'adatt', 'royatt'].map((k) => '<input type="number" min="0" value="0" data-ikcc-research="' + prefix + ':' + k + '" style="width:40px;box-sizing:border-box;' + FIELD_STYLE + '">').join('')
-      + '</span></div>';
-  }
-
-  // See-Anlagen fuer "Flotte entern" (⚓ im Bau-Menue, Nutzer-Screenshot
-  // 2026-10-09; Anzahl statt Stufe). Katapult = nur ⚔️ Landung, fehlt daher.
-  const SEA_INSTALLATIONS = [
-    { name: 'Wachturm', attack: 30, hp: 150 },
-    { name: 'Küstenkanone', attack: 800, hp: 1200 },
-    { name: 'Kanonenturm', attack: 1600, hp: 4500 },
-  ];
+  // Flotte entern: nur ⚓-Anlagen kaempfen mit (Stadtmauer/Land-Anlagen spielen keine Rolle).
+  const SEA_INSTALLATIONS = INSTALLATIONS_COMBAT.filter((u) => u.phase !== 'land');
 
   const boardBodyHtml ='<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Eine Salve, dann Enterkampf der Soldaten gegen die Besatzung. Gekapert wird die Hälfte der Hafenschiffe, die die Salve überleben — wer alles versenkt, kapert nichts. Faustregel: nur knapp überlegen (≈ 1,0–1,2× der Verteidigung). Voraussetzung: Kampfschiff-Forschung ≥ 10.</p>'
     + unitSection('batt', 'Angreifer', '#a78bfa', true)
-    + researchRow('batt')
+    + quoteRow('batt')
     + unitSection('bdef', 'Hafen (Schiffe + Besatzung)', 'var(--ikbm-gold)', false)
-    + '<div style="font-size:11px;opacity:.6;margin:4px 0">See-Anlagen (⚓, Anzahl)</div>'
-    + SEA_INSTALLATIONS.map((u) => unitRow('bdef', u, null, false)).join('')
-    + researchRow('bdef')
+    + installationRows('bdef', SEA_INSTALLATIONS)
+    + quoteRow('bdef')
+    + fortifyRow('bdef')
     + '<button id="ikcc-board-run" style="width:100%;padding:6px;margin:10px 0;cursor:pointer">Entern</button>'
     + '<div id="ikcc-board-result"><p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Flotten eingeben und auf "Entern" klicken.</p></div>';
 
@@ -1085,26 +1089,21 @@
     catalog.forEach((u) => {
       const input = combat.panel.querySelector('[data-ikcc-unit="' + prefix + ':' + u.name + '"]');
       const count = parseInt(input.value) || 0;
-      if (count > 0) units.push({ name: u.name, attack: u.attack, hp: u.hp, count });
+      if (count > 0) units.push(Object.assign({}, u, { count }));
     });
     return units;
   }
 
-  function collectBuildings() {
-    const units = [];
-    BUILDINGS_COMBAT.forEach((b) => {
-      if (b.fixed) {
-        const box = combat.panel.querySelector('[data-ikcc-bldg-fixed="' + b.name + '"]');
-        if (box.checked) units.push({ name: b.name, attack: b.fixed.attack, hp: b.fixed.hp, count: 1 });
-      } else {
-        const input = combat.panel.querySelector('[data-ikcc-bldg-lv="' + b.name + '"]');
-        const lv = parseInt(input.value) || 0;
-        // Stufe = Anzahl Einheiten mit perLv-Werten (DP5/DP6 2026-09-24: 9 leichte
-        // Tuerme zaehlen als 9 Einheiten a 30/100, nicht als 1 Einheit 270/900).
-        if (lv > 0) units.push({ name: b.name, attack: b.perLv.attack, hp: b.perLv.hp, count: lv });
-      }
-    });
-    return units;
+  // Anlagen mit Befestigungs-Bonus (TP gerundet, Kampfbericht 2026-10-06: 1'200 -> 1'320 bei +10 %).
+  function collectInstallations(prefix, catalog) {
+    const fort = readPct(prefix, 'fort', 0);
+    return collectUnits(prefix, catalog).map((u) => Object.assign(u, { hp: Math.round(u.hp * (1 + fort / 100)) }));
+  }
+
+  function readPct(prefix, key, fallback) {
+    const input = combat.panel.querySelector('[data-ikcc-pct="' + prefix + ':' + key + '"]');
+    const v = parseFloat(input && input.value);
+    return isNaN(v) ? fallback : Math.max(0, Math.min(100, v));
   }
 
   // Dock-Schaden je Typ (Formel 2026-09-23/24, 7/7 echte Kampfberichte exakt):
@@ -1123,7 +1122,7 @@
       // Kolo nie im Dock und zählt nicht als "heil zurück": wird bei der Eroberung verbraucht (Nutzer 2026-09-24, DP8)
       if (f.after <= 0 || f.name === 'Kolonisationsschiff') return;
       // Verteidigungsanlagen gehen nie ins Dock (Verteidigungsbericht 2026-09-25: Türme "–", nicht unter "Beschädigt")
-      if (BUILDINGS_COMBAT.some((b) => b.name === f.name)) return;
+      if (f.phase) return;
       survivors += f.after;
       const dmgHp = f.after * f.hp - f.curHpPool;
       const pct = Math.round((dmgHp / f.hp) * 100 + 1e-9);
@@ -1246,27 +1245,78 @@
     return { text: '🛡️ ' + defenderLabel + ' hält (max. 6 Runden erreicht)', color: 'var(--ikbm-gold)' };
   }
 
+  // Insel-Angriff, Kampfkonzept 2.0 (live seit 2026-10-09). Nachgebaut gegen
+  // /api/combat/simulate: 46/46 Faelle exakt (Runden + Ueberlebende je Phase),
+  // dazu Kampfbericht Schelmi vs. Sir Francis Drake 2026-10-06 (Verluste je Typ in beiden Phasen).
+  // 1. Seeschlacht (max. 6 Runden): Schiffe vs. Hafenschiffe + ⚓-Anlagen.
+  // 2. Landung nur bei freier See und Truppen an Bord: Truppen + Schiffe
+  //    (Bombardement floor(Angriff x 0,75) je Schiff, werden mitgetroffen,
+  //    Restschaden aus der See bleibt) vs. Soldaten + ⚔️-Anlagen (ebenfalls
+  //    mit Restschaden) + Stadtmauer. Rueckzug je Phase bei >= 90 % TP-Verlust.
+  function simulateIsland(attShips, attTroops, defShips, defTroops, defInst, qa, qd) {
+    const opts = { qa, qd, retreat: true };
+    const sea = simulateCombatFull(attShips, defShips.concat(defInst.filter((u) => u.phase !== 'land')), 6, opts);
+    const res = { sea, land: null };
+    const seaLeft = sea.defFinal.filter((u) => u.after > 0);
+    if (!sea.attFinal.some((u) => u.after > 0)) return Object.assign(res, { outcome: 'fleetSunk' });
+    if (sea.retreated) return Object.assign(res, { outcome: 'retreatSea' });
+    if (seaLeft.length) return Object.assign(res, { outcome: seaLeft.every((u) => u.name === 'Wasserblockade') ? 'blocked' : 'seaHeld' });
+    if (!attTroops.length) return Object.assign(res, { outcome: 'harbour' });
+    const bombard = sea.attFinal.filter((u) => u.after > 0).map((u) => Object.assign({}, u, { attack: Math.floor(u.attack * 0.75) }));
+    const carried = (u) => sea.defFinal.find((f) => f.name === u.name) || u;
+    const landDef = defTroops.concat(defInst.filter((u) => u.phase !== 'sea').map(carried));
+    res.land = simulateCombatFull(attTroops.concat(bombard), landDef, 6, opts);
+    const troopsLeft = res.land.attFinal.some((u) => u.after > 0 && !SHIPS_COMBAT.some((s) => s.name === u.name));
+    if (res.land.retreated) return Object.assign(res, { outcome: 'retreatLand' });
+    if (!res.land.defFinal.some((u) => u.after > 0) && troopsLeft) return Object.assign(res, { outcome: 'won' });
+    return Object.assign(res, { outcome: res.land.attFinal.some((u) => u.after > 0) ? 'landHeld' : 'fleetSunk' });
+  }
+
+  const ISLAND_OUTCOME = {
+    won: ['🏆 Landsieg — volle Beute', '#4ade80'],
+    harbour: ['⚓ See frei, keine Truppen — 25 % Laderaum Hafenplünderung', 'var(--ikbm-gold)'],
+    blocked: ['🚧 Wasserblockade hält — keine Landung, keine Beute', '#f87171'],
+    seaHeld: ['🛡️ Seeschlacht nicht gewonnen (6 Runden)', '#f87171'],
+    landHeld: ['🛡️ Landung abgewehrt', '#f87171'],
+    retreatSea: ['🏳️ Rückzug in der Seeschlacht (≥ 90 % TP verloren)', '#f87171'],
+    retreatLand: ['🏳️ Rückzug bei der Landung (≥ 90 % TP verloren)', '#f87171'],
+    fleetSunk: ['💀 Angreifer vernichtet', '#f87171'],
+  };
+
+  // Endstand je Einheit ueber beide Phasen: spaeteste Phase gewinnt, wer nie kaempfte, bleibt heil.
+  function mergeFinal(units, ...phases) {
+    return units.map((u) => {
+      let f = Object.assign({}, u, { after: u.count, curHpPool: u.count * u.hp });
+      phases.forEach((list) => { const x = list && list.find((p) => p.name === u.name); if (x) f = x; });
+      return f;
+    });
+  }
+
   function runCombat() {
-    const attackerUnits = collectUnits('att', SHIPS_COMBAT).concat(collectUnits('att', TROOPS_COMBAT));
-    const defenderUnits = collectUnits('def', SHIPS_COMBAT).concat(collectUnits('def', TROOPS_COMBAT)).concat(collectBuildings());
+    const attShips = collectUnits('att', SHIPS_COMBAT);
+    const attTroops = collectUnits('att', TROOPS_COMBAT);
+    const defShips = collectUnits('def', SHIPS_COMBAT);
+    const defTroops = collectUnits('def', TROOPS_COMBAT);
+    const defInst = collectInstallations('def', INSTALLATIONS_COMBAT);
     const box = document.getElementById('ikcc-result');
+    const msg = (t) => { box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">' + t + '</p>'; };
+    if (!attShips.length) return msg('Angreifer braucht mindestens ein Schiff.');
+    if (!defShips.length && !defTroops.length && !defInst.length) return msg('0 Verteidiger → kein Kampf, reine Plünderung.');
 
-    if (attackerUnits.length === 0) {
-      box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">Angreifer braucht mindestens eine Einheit.</p>';
-      return;
-    }
-    if (defenderUnits.length === 0) {
-      box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">0 Verteidiger → kein Kampf, reine Plünderung.</p>';
-      return;
-    }
+    const qa = readPct('att', 'hit', 60), qd = readPct('def', 'hit', 60);
+    // Varianz ±10 % auf beide Seiten gleichzeitig - wie die best/worst-Faelle des Spiel-Rechners.
+    const cases = [-10, 0, 10].map((d) => ({ d, r: simulateIsland(attShips, attTroops, defShips, defTroops, defInst, Math.max(0, qa + d), Math.max(0, qd + d)) }));
+    const r = cases[1].r;
+    const attAll = attShips.concat(attTroops), defAll = defShips.concat(defInst, defTroops);
+    const o = ISLAND_OUTCOME[r.outcome];
 
-    const result = simulateCombatFull(attackerUnits, defenderUnits);
-    const o = outcome(result, 'Verteidiger');
-
-    let html = '<div style="font-weight:bold;color:' + o.color + ';margin-bottom:4px">' + o.text + '</div>'
-      + '<div style="font-size:12px;opacity:.8">Runden: <b>' + result.rounds + '</b> / 6</div>'
-      + resultTable('Angreifer', attackerUnits, result.attFinal, true)
-      + resultTable('Verteidiger', defenderUnits, result.defFinal, false, true);
+    let html = '<div style="font-weight:bold;color:' + o[1] + ';margin-bottom:4px">' + o[0] + '</div>'
+      + '<div style="font-size:12px;opacity:.8">⚓ Seeschlacht: <b>' + r.sea.rounds + '</b> Runden'
+      + (r.land ? ' · ⚔️ Landung: <b>' + r.land.rounds + '</b> Runden' : '') + '</div>'
+      + '<div style="font-size:11px;opacity:.7">Trefferquote −10 %: ' + ISLAND_OUTCOME[cases[0].r.outcome][0].split(' ')[0]
+      + ' · +10 %: ' + ISLAND_OUTCOME[cases[2].r.outcome][0].split(' ')[0] + '</div>'
+      + resultTable('Angreifer', attAll, mergeFinal(attAll, r.sea.attFinal, r.land && r.land.attFinal), true)
+      + resultTable('Verteidiger', defAll, mergeFinal(defAll, r.sea.defFinal, r.land && r.land.defFinal), false, true);
     box.innerHTML = html;
   }
 
@@ -1297,59 +1347,48 @@
     box.innerHTML = html;
   }
 
-  // Flotte entern (IK-Update 2026-10-09, Kampfkonzept 2.0) - portiert aus
-  // E:\Obsidian\raw\islandking-enter-rechner-v1.0.0.zip (engine.js). Ablauf:
-  // 1. EINE simultane Salve, Schaden = Angriff x Trefferquote (60 % + Forschung).
-  //    Verteilt ueber simulateCombatFull(..., 1) (proportional, DP1-DP13) statt
-  //    der sequenziellen Verteilung aus engine.js - bei einem Schiffstyp
-  //    identisch (Simulator-Belege 2/4/6 sc -> gekapert, 10/20 sc -> nichts,
-  //    gegen 3 sc), bei gemischten Hafenflotten unbelegt.
-  // 2. Angreifer verliert >= 90 % TP -> Rueckzug. Kein Hafenschiff ueberlebt -> nichts zu kapern.
-  // 3. Enterkampf: Soldaten an Bord (begrenzt durch Truppenplaetze) gegen die
-  //    Besatzung, gleiche Formel wie die Landschlacht, Quote 60 %.
-  // 4. Gekapert = Haelfte (aufgerundet) der Ueberlebenden, wertvollste
-  //    (Angriff+TP) zuerst, je Prise max(Truppenplaetze, 5) Soldaten Prisenbesatzung.
-  // See-Anlagen (⚓ im Bau-Menue, Nutzer-Screenshot 2026-10-09): feuern in der
-  // Salve mit und schlucken anteilig Schaden, werden aber nie gekapert.
-  // Katapult (nur ⚔️ Landung) kaempft beim Entern nicht. Befestigungsforschung
-  // (+TP auf Anlagen) fehlt noch.
-  // Truppenplaetze = SCHAETZWERTE aus dem Paket (Romans Flotte ergab 520 Plaetze).
-  const SHIP_TROOP_CAPACITY = { 'kleines Frachtschiff': 40, 'grosses Frachtschiff': 200, 'altes Piratenschiff': 1, 'Piratenschiff': 10, 'Fregatte': 100, 'Schlachtschiff': 50, 'mächtiges Piratenschiff': 20 };
+  // Flotte entern (Kampfkonzept 2.0, live seit 2026-10-09). Ausgangslage:
+  // E:\Obsidian\raw\islandking-enter-rechner-v1.0.0.zip, Regeln dann gegen
+  // /api/combat/simulate (mode "capture") nachgeprueft und korrigiert:
+  // 1. EINE Salve (Trefferquote je Seite) Schiffe vs. Hafenschiffe + ⚓-Anlagen.
+  //    Alle Angreifer-Schiffe versenkt -> fleetSunk, >= 90 % TP verloren -> Rueckzug,
+  //    kein Hafenschiff uebrig -> nichts zu kapern.
+  // 2. Enterkampf: ALLE Soldaten des Angreifers (nicht durch Truppenplaetze
+  //    begrenzt) vs. Besatzung = Verteidiger-Soldaten, soweit sie auf ALLE
+  //    Hafenschiffe vor der Salve passen (SHIP_TROOP_CAPACITY, live). Gleiche
+  //    Formel wie die Landung, beide Trefferquoten.
+  // 3. Gekapert = floor(Ueberlebende / 2) (8 -> 4, 9 -> 4, 1 -> 0), je Prise
+  //    5 Soldaten Prisenbesatzung (Simulator: 12 Soldaten -> 2 von 4 Prisen;
+  //    der Hilfetext nennt "Truppenplaetze, mindestens 5" - Simulator gewinnt).
+  //    Welche Typen: "die wertvollsten zuerst" (Hilfetext) - Wert hier Angriff+TP, unbelegt.
+  const SHIP_TROOP_CAPACITY = { 'kleines Frachtschiff': 300, 'grosses Frachtschiff': 1500, 'altes Piratenschiff': 100, 'Piratenschiff': 100, 'grosses Piratenschiff': 150, 'Fregatte': 520, 'mächtiges Piratenschiff': 200 };
+  const PRIZE_CREW = 5;
 
-  function simulateBoarding(attShips, attTroops, defShips, defTroops, qA, qD, qS, defInst = []) {
-    const scale = (units, q) => units.map((u) => Object.assign({}, u, { attack: u.attack * q / 100 }));
-    const salvo = simulateCombatFull(scale(attShips, qA), scale(defShips.concat(defInst), qD), 1);
-    const res = { salvo, captured: [], cap: 0, troops: [], board: null, crewShort: false };
-    const hp0 = attShips.reduce((s, u) => s + u.count * u.hp, 0);
-    const hp1 = salvo.attFinal.reduce((s, u) => s + u.curHpPool, 0);
-    if (hp0 - hp1 >= 0.9 * hp0 - 1e-6) return Object.assign(res, { outcome: 'retreat' });
+  function simulateBoarding(attShips, attTroops, defShips, defTroops, qa, qd, defInst = []) {
+    const opts = { qa, qd, retreat: true };
+    const salvo = simulateCombatFull(attShips, defShips.concat(defInst), 1, opts);
+    const res = { salvo, captured: [], crew: [], board: null, crewShort: false };
+    if (!salvo.attFinal.some((u) => u.after > 0)) return Object.assign(res, { outcome: 'fleetSunk' });
+    if (salvo.retreated) return Object.assign(res, { outcome: 'retreat' });
     const alive = salvo.defFinal.filter((u) => u.after > 0 && defShips.some((d) => d.name === u.name));
     if (!alive.length) return Object.assign(res, { outcome: 'noPrize' });
-    // Nur so viele Soldaten wie Truppenplaetze an Bord - beim Angreifer UND als
-    // Besatzung des Verteidigers ("so weit sie auf seine Hafenschiffe passen",
-    // IK-Hilfetext 2026-10-09; ob alle oder nur die ueberlebenden Hafenschiffe
-    // zaehlen, ist offen - hier alle). Ueberzaehlige anteilig gestrichen.
-    const fit = (ships, troops) => {
-      const cap = ships.reduce((s, u) => s + (SHIP_TROOP_CAPACITY[u.name] || 0) * u.count, 0);
-      const total = troops.reduce((s, u) => s + u.count, 0);
-      const f = total > cap ? cap / total : 1;
-      return { cap, troops: troops.map((u) => Object.assign({}, u, { count: Math.floor(u.count * f) })).filter((u) => u.count > 0) };
-    };
-    ({ cap: res.cap, troops: res.troops } = fit(attShips, attTroops));
-    if (!res.troops.length) return Object.assign(res, { outcome: 'noSoldiers' });
-    res.crew = fit(defShips, defTroops).troops;
-    res.board = res.crew.length ? simulateCombatFull(scale(res.troops, qS), scale(res.crew, qS))
-      : { attFinal: res.troops.map((u) => Object.assign({}, u, { after: u.count })), defFinal: [] };
+    if (!attTroops.length) return Object.assign(res, { outcome: 'noSoldiers' });
+    // Besatzung: ueberzaehlige Soldaten anteilig gestrichen (welche, ist unbelegt).
+    const cap = defShips.reduce((s, u) => s + (SHIP_TROOP_CAPACITY[u.name] || 0) * u.count, 0);
+    const total = defTroops.reduce((s, u) => s + u.count, 0);
+    const f = total > cap ? cap / total : 1;
+    res.crew = defTroops.map((u) => Object.assign({}, u, { count: Math.floor(u.count * f) })).filter((u) => u.count > 0);
+    res.board = res.crew.length ? simulateCombatFull(attTroops, res.crew, 6, opts)
+      : { attFinal: attTroops.map((u) => Object.assign({}, u, { after: u.count, curHpPool: u.count * u.hp })), defFinal: [] };
     let crew = res.board.attFinal.reduce((s, u) => s + u.after, 0);
     if (!crew || res.board.defFinal.some((u) => u.after > 0)) return Object.assign(res, { outcome: 'held' });
-    let n = Math.ceil(alive.reduce((s, u) => s + u.after, 0) / 2);
-    const value = (u) => { const d = defShips.find((x) => x.name === u.name); return d.attack + d.hp; };
+    let n = Math.floor(alive.reduce((s, u) => s + u.after, 0) / 2);
+    const value = (u) => u.attack + u.hp;
     for (const u of alive.slice().sort((a, b) => value(b) - value(a))) {
       if (n <= 0) break;
-      const per = Math.max(SHIP_TROOP_CAPACITY[u.name] || 0, 5);
       const want = Math.min(u.after, n);
-      const take = Math.min(want, Math.floor(crew / per));
-      if (take > 0) { res.captured.push({ name: u.name, count: take, crew: take * per }); n -= take; crew -= take * per; }
+      const take = Math.min(want, Math.floor(crew / PRIZE_CREW));
+      if (take > 0) { res.captured.push({ name: u.name, count: take, crew: take * PRIZE_CREW }); n -= take; crew -= take * PRIZE_CREW; }
       if (take < want) { res.crewShort = true; break; }
     }
     return Object.assign(res, { outcome: 'captured' });
@@ -1359,6 +1398,7 @@
     captured: ['🏴‍☠️ Gekapert', '#4ade80'],
     noPrize: ['💥 Alles versenkt — nichts zu kapern', '#f87171'],
     retreat: ['🏳️ Rückzug (≥ 90 % TP verloren)', '#f87171'],
+    fleetSunk: ['💀 Eigene Flotte versenkt', '#f87171'],
     held: ['🛡️ Enterkampf verloren', 'var(--ikbm-gold)'],
     noSoldiers: ['⚠️ Keine Soldaten an Bord', 'var(--ikbm-gold)'],
   };
@@ -1368,17 +1408,16 @@
     const attTroops = collectUnits('batt', TROOPS_COMBAT);
     const defShips = collectUnits('bdef', SHIPS_COMBAT);
     const defTroops = collectUnits('bdef', TROOPS_COMBAT);
-    const defInst = collectUnits('bdef', SEA_INSTALLATIONS);
+    const defInst = collectInstallations('bdef', SEA_INSTALLATIONS);
     const box = document.getElementById('ikcc-board-result');
     const msg = (t) => { box.innerHTML = '<p style="opacity:.6;text-align:center;font-style:italic;padding:15px 0">' + t + '</p>'; };
     if (!attShips.length) return msg('Angreifer braucht mindestens ein Schiff.');
     if (!defShips.length) return msg('Keine Hafenschiffe → nichts zu entern.');
 
-    const lv = (p, k) => parseInt(combat.panel.querySelector('[data-ikcc-research="' + p + ':' + k + '"]').value) || 0;
-    const quote = (p, d) => Math.max(0, Math.min(100, 60 + lv(p, 'stdatt') + 2 * lv(p, 'adatt') + 5 * lv(p, 'royatt') + d));
-    // Varianz ±10 % auf beide Seiten gleichzeitig (wie engine.js best/worst).
-    const cases = [-10, 0, 10].map((d) => ({ d, qA: quote('batt', d), qD: quote('bdef', d),
-      r: simulateBoarding(attShips, attTroops, defShips, defTroops, quote('batt', d), quote('bdef', d), 60 + d, defInst) }));
+    const qa = readPct('batt', 'hit', 60), qd = readPct('bdef', 'hit', 60);
+    // Varianz ±10 % auf beide Seiten gleichzeitig - wie die best/worst-Faelle des Spiel-Rechners.
+    const cases = [-10, 0, 10].map((d) => ({ d, qA: Math.max(0, qa + d), qD: Math.max(0, qd + d),
+      r: simulateBoarding(attShips, attTroops, defShips, defTroops, Math.max(0, qa + d), Math.max(0, qd + d), defInst) }));
     const exp = cases[1].r;
 
     const sum = (units, k) => units.reduce((s, u) => s + u.count * u[k], 0);
@@ -1395,8 +1434,7 @@
       html += '<div style="font-size:12px">' + exp.captured.map((c) => c.count + '× ' + c.name).join(', ')
         + ' <span style="opacity:.7">(kommen mit 25 % Schaden ins Dock, Prisenbesatzung ' + exp.captured.reduce((s, c) => s + c.crew, 0) + ' Soldaten)</span></div>';
     }
-    if (exp.crewShort) html += '<div style="font-size:11px;color:var(--ikbm-gold)">Für mehr Beute fehlte die Prisenbesatzung (je Prise mind. 5 Soldaten).</div>';
-    if (exp.outcome === 'noSoldiers') html += '<div style="font-size:11px;opacity:.75">Truppenplätze der Flotte: ' + exp.cap + ' (Frachtschiffe mitnehmen).</div>';
+    if (exp.crewShort) html += '<div style="font-size:11px;color:var(--ikbm-gold)">Für mehr Beute fehlte die Prisenbesatzung (je Prise 5 Soldaten).</div>';
     html += '<div style="font-size:12px;margin-top:6px">Verhältnis: <b>' + (defAtk ? (attAtk / defAtk).toFixed(2) + '×' : '∞') + '</b> der Verteidigung (Ziel ≈ 1,0–1,2×)</div>'
       + '<div style="font-size:11px;opacity:.8">Max. Angriff, damit sicher (auch bei +10 %) ein Hafenschiff überlebt: <b>' + fmt(maxAtk) + '</b> (aktuell ' + fmt(attAtk) + ')</div>'
       + '<div style="font-size:11px;opacity:.8">Min. eigene TP gegen Rückzug: <b>' + fmt(minHp) + '</b> (aktuell ' + fmt(sum(attShips, 'hp')) + ')</div>'
@@ -1411,7 +1449,7 @@
       + resultTable('Angreifer (Salve)', attShips, exp.salvo.attFinal, true)
       + resultTable('Hafen (Salve)', defSea, exp.salvo.defFinal, false);
     if (exp.board) {
-      html += resultTable('Enterkampf: Soldaten an Bord', exp.troops, exp.board.attFinal, false)
+      html += resultTable('Enterkampf: Soldaten an Bord', attTroops, exp.board.attFinal, false)
         + (exp.crew.length ? resultTable('Besatzung (passt auf Hafenschiffe)', exp.crew, exp.board.defFinal, false) : '');
     }
     box.innerHTML = html;
@@ -1435,7 +1473,8 @@
   // auf den Katalognamen zurückgeführt werden, sonst bleibt der Input leer.
   const TROOP_PLURAL_ALIASES = { soldaten: 'soldat', musketiere: 'musketier', kanoniere: 'kanonier' };
   function normalizeShipName(s) {
-    const n = s.trim().replace(/ß/g, 'ss').toLowerCase();
+    // ä/ö/ü wie ae/oe/ue: die API schreibt "Kuestenkanone", das Bau-Menue "Küstenkanone".
+    const n = s.trim().replace(/ß/g, 'ss').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
     return TROOP_PLURAL_ALIASES[n] || n;
   }
 
@@ -1526,7 +1565,10 @@
   function sendSpyDefenseToKampfrechner(card) {
     const ships = parseCountList(getSpyCardField(card, 'Schiffe'));
     const troops = parseCountList(getSpyCardField(card, 'Soldaten'));
-    const buildings = parseBuildingList(getSpyCardField(card, 'Verteidigungsgebäude'));
+    // ponytail: Feldname/Format der Anlagen im neuen Spaehbericht (Kampfkonzept 2.0) noch
+    // nicht live gesehen - beide Varianten ("N × Name" und alt "Name Lv N") werden als Anzahl gelesen.
+    const buildings = [getSpyCardField(card, 'Verteidigungsgebäude'), getSpyCardField(card, 'Anlagen'), getSpyCardField(card, 'Verteidigungsanlagen')]
+      .flatMap((t) => parseCountList(t).concat(parseBuildingList(t).filter((b) => b.level != null).map((b) => ({ name: b.name, count: b.level }))));
 
     const body = combat.panel.querySelector('[data-role="body"]');
     if (body.hidden) combat.panel.querySelector('[data-role="collapse-toggle"]').click();
@@ -1535,23 +1577,12 @@
     // Verteidiger-Seite erst zuruecksetzen, sonst vermischen sich alte
     // Handeingaben mit den neu uebertragenen Werten.
     combat.panel.querySelectorAll('[data-ikcc-unit^="def:"]').forEach((inp) => { inp.value = 0; });
-    combat.panel.querySelectorAll('[data-ikcc-bldg-lv]').forEach((inp) => { inp.value = 0; });
-    combat.panel.querySelectorAll('[data-ikcc-bldg-fixed]').forEach((box) => { box.checked = false; });
 
-    [...ships, ...troops].forEach((s) => {
+    [...ships, ...troops, ...buildings].forEach((s) => {
       const target = normalizeShipName(s.name);
       const input = Array.from(combat.panel.querySelectorAll('[data-ikcc-unit^="def:"]'))
         .find((inp) => normalizeShipName(inp.dataset.ikccUnit.slice(4)) === target);
       if (input) input.value = s.count;
-    });
-    buildings.forEach((b) => {
-      const target = normalizeShipName(b.name);
-      const fixedBox = Array.from(combat.panel.querySelectorAll('[data-ikcc-bldg-fixed]'))
-        .find((box) => normalizeShipName(box.dataset.ikccBldgFixed) === target);
-      if (fixedBox) { fixedBox.checked = true; return; }
-      const lvInput = Array.from(combat.panel.querySelectorAll('[data-ikcc-bldg-lv]'))
-        .find((inp) => normalizeShipName(inp.dataset.ikccBldgLv) === target);
-      if (lvInput && b.level != null) lvInput.value = b.level;
     });
 
     combat.panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
