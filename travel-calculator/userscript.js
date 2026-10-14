@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Islandking Reisezeitenrechner
 // @namespace    https://github.com/H4nnib4l22/islandKing-bookmarklets
-// @version      1.9.0
+// @version      1.9.1
 // @description  Berechnet Distanz und Fahrtzeit zwischen zwei Koordinaten für alle Schiffstypen, plus Kampfrechner (Kampfkonzept 2.0: Seeschlacht + Landung, Trefferquote, Anlagen, Befestigung) mit PvP-, Konvoi-entern- und Flotte-entern-Tab (inkl. "An Kampfrechner senden"-Button im Karten-Popup eines Piraten-Konvois und Allianzkürzel hinter dem Namen bei Angriffs-/Spionageberichten) — beide Panels ein-/ausklappbar, per Zahnrad wahlweise am Rand fest gestapelt oder frei auf dem Bildschirm verschiebbar (Position wird gemerkt), Titelzeile und Kampfrechner-Tabs bleiben beim Scrollen fixiert, im Reisezeitenrechner auch Start/Ziel/Schiffstempo-Auswahl, 420px breit statt 380px, Kampfrechner-Panel jetzt breiten-responsiv, beide Panels folgen automatisch dem Hell-/Dunkelmodus von islandking.ch, alle Kampfrechner-Eingabefelder gleich breit
 // @author       Oscar
 // @license      MIT
@@ -915,7 +915,7 @@
   // Flotte entern: nur ⚓-Anlagen kaempfen mit (Stadtmauer/Land-Anlagen spielen keine Rolle).
   const SEA_INSTALLATIONS = INSTALLATIONS_COMBAT.filter((u) => u.phase !== 'land');
 
-  const boardBodyHtml ='<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Eine Salve, dann Enterkampf der Soldaten gegen die Besatzung. Gekapert wird die Hälfte der Hafenschiffe, die die Salve überleben — wer alles versenkt, kapert nichts. Faustregel: nur knapp überlegen (≈ 1,0–1,2× der Verteidigung). Voraussetzung: Kampfschiff-Forschung ≥ 10.</p>'
+  const boardBodyHtml ='<p style="opacity:.6;font-size:11px;margin:4px 0 10px">Eine Salve, dann Enterkampf der Soldaten gegen die Besatzung. Gekapert wird je Schiffstyp die Hälfte der Hafenschiffe, die die Salve unbeschädigt überleben (angeschlagene gehen ins Dock) — wer alles versenkt, kapert nichts. Faustregel: nur knapp überlegen (≈ 1,0–1,2× der Verteidigung). Voraussetzung: Kampfschiff-Forschung ≥ 10.</p>'
     + unitSection('batt', 'Angreifer', '#a78bfa', true)
     + quoteRow('batt')
     + unitSection('bdef', 'Hafen (Schiffe + Besatzung)', 'var(--ikbm-gold)', false)
@@ -1357,7 +1357,8 @@
   //    begrenzt) vs. Besatzung = Verteidiger-Soldaten, soweit sie auf ALLE
   //    Hafenschiffe vor der Salve passen (SHIP_TROOP_CAPACITY, live). Gleiche
   //    Formel wie die Landung, beide Trefferquoten.
-  // 3. Gekapert = floor(Ueberlebende / 2) (8 -> 4, 9 -> 4, 1 -> 0), je Prise
+  // 3. Gekapert je Typ floor(unbeschaedigte Ueberlebende / 2) (Live-Bericht 10-12;
+  //    der Simulator rechnete floor(alle / 2) ueber alle Typen), je Prise
   //    5 Soldaten Prisenbesatzung (Simulator: 12 Soldaten -> 2 von 4 Prisen;
   //    der Hilfetext nennt "Truppenplaetze, mindestens 5" - Simulator gewinnt).
   //    Welche Typen: "die wertvollsten zuerst" (Hilfetext) - Wert hier Angriff+TP, unbelegt.
@@ -1382,13 +1383,15 @@
       : { attFinal: attTroops.map((u) => Object.assign({}, u, { after: u.count, curHpPool: u.count * u.hp })), defFinal: [] };
     let crew = res.board.attFinal.reduce((s, u) => s + u.after, 0);
     if (!crew || res.board.defFinal.some((u) => u.after > 0)) return Object.assign(res, { outcome: 'held' });
-    let n = Math.floor(alive.reduce((s, u) => s + u.after, 0) / 2);
+    // Live-Bericht 2026-10-12: je Typ floor(unbeschaedigte / 2); das in der Salve
+    // angeschlagene Schiff je Typ geht ins Dock und ist nicht kaperbar.
+    // 4 SG + 4 SS + 7 MP, je 1 beschaedigt -> 1 + 1 + 3 = 5 (Simulator sagte 7).
     const value = (u) => u.attack + u.hp;
     for (const u of alive.slice().sort((a, b) => value(b) - value(a))) {
-      if (n <= 0) break;
-      const want = Math.min(u.after, n);
+      const want = Math.floor((u.after - (u.curHpPool < u.after * u.hp - 1e-6 ? 1 : 0)) / 2);
+      if (want <= 0) continue;
       const take = Math.min(want, Math.floor(crew / PRIZE_CREW));
-      if (take > 0) { res.captured.push({ name: u.name, count: take, crew: take * PRIZE_CREW }); n -= take; crew -= take * PRIZE_CREW; }
+      if (take > 0) { res.captured.push({ name: u.name, count: take, crew: take * PRIZE_CREW }); crew -= take * PRIZE_CREW; }
       if (take < want) { res.crewShort = true; break; }
     }
     return Object.assign(res, { outcome: 'captured' });
